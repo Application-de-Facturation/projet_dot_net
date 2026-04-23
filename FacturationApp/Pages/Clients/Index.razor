@@ -1,0 +1,252 @@
+
+
+@* ============================
+   Page : Liste des clients
+   Fichier : Pages/Clients/Index.razor
+   Rôle : afficher, rechercher et supprimer logiquement des clients
+   ============================ *@
+
+@page "/clients"
+@using Microsoft.AspNetCore.Components.Web
+
+@* ===================================================
+   Imports &&&&&&&&&&&&&&&  injections
+   =================================================== *@
+
+@* Entité Client *@
+@using FacturationApp.Data.Entities
+
+@* Interface du service métier des clients *@
+@using FacturationApp.Services.Interfaces
+
+@* Injection du service pour récupérer / rechercher / supprimer les clients *@
+@inject IClientService ClientService
+
+@* Service de navigation Blazor (injecté ici même s’il n’est pas encore utilisé dans ce code) *@
+@inject NavigationManager NavigationManager
+
+@* Titre affiché dans l’onglet du navigateur *@
+<PageTitle>Gestion des Clients</PageTitle>
+
+@* ============================
+   En-tête de la page
+   ============================ *@
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-people-fill text-primary"></i>
+        Clients
+    </h2>
+
+    @* Bouton qui redirige vers la page de création d’un nouveau client *@
+    <a href="/clients/nouveau" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i>
+        Nouveau Client
+    </a>
+</div>
+
+@* ============================
+   Barre de recherche
+   ============================ *@
+<div class="mb-3">
+    <input type="text"
+       class="form-control"
+       placeholder="Rechercher par nom ou matricule fiscal..."
+       value="@termRecherche"
+       @oninput="FiltrerClients" />
+</div>
+
+@* ============================
+   Affichage conditionnel
+   1. Chargement
+   2. Liste vide
+   3. Tableau des clients
+   ============================ *@
+
+@if (_isLoading)
+{
+    @* Affichage pendant le chargement des données *@
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement des clients...</p>
+    </div>
+}
+else if (!_clients.Any())
+{
+    @* Cas où aucun client n’est disponible *@
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i>
+        Aucun client trouvé.
+    </div>
+}
+else
+{
+    @* Tableau des clients *@
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Nom</th>
+                <th>Email</th>
+                <th>Téléphone</th>
+                <th>Matricule Fiscal</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var client in _clients)
+            {
+                <tr>
+                    <td>@client.Id</td>
+                    <td><strong>@client.Nom</strong></td>
+
+                    @* Si la valeur est null, on affiche un tiret *@
+                    <td>@(client.Email ?? "—")</td>
+                    <td>@(client.Telephone ?? "—")</td>
+                    <td>@(client.MatriculeFiscal ?? "—")</td>
+
+                    <td>
+                        @* Bouton modifier *@
+                        <a href="/clients/editer/@client.Id"
+                           class="btn btn-sm btn-outline-primary me-1">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+
+                        @* Bouton supprimer :
+                           il n’exécute pas directement la suppression,
+                           il ouvre d’abord le modal de confirmation *@
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => ConfirmerSuppression(client.Id)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @* Nombre de clients actuellement affichés *@
+    <p class="text-muted small">@_clients.Count client(s) affiché(s)</p>
+}
+
+@* ============================
+   Modal de confirmation
+   Affiché seulement si un ID est sélectionné pour suppression
+   ============================ *@
+@if (_idASupprimer.HasValue)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">
+                        Confirmer la suppression
+                    </h5>
+                </div>
+
+                <div class="modal-body">
+                    Êtes-vous sûr de vouloir supprimer ce client ? Cette action est irréversible.
+                </div>
+
+                <div class="modal-footer">
+                    @* Fermer le modal sans supprimer *@
+                    <button class="btn btn-secondary" @onclick="AnnulerSuppression">
+                        Annuler
+                    </button>
+
+                    @* Confirmer la suppression *@
+                    <button class="btn btn-danger" @onclick="ExecuterSuppression">
+                        Supprimer
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // =========================================================
+    // VARIABLES D'ÉTAT
+    // =========================================================
+
+    // Liste des clients affichés dans le tableau
+    private List<Client> _clients = new();
+
+    // Indique si la page est en train de charger les données
+    private bool _isLoading = true;
+
+    // Texte saisi dans la barre de recherche
+    private string termRecherche = string.Empty;
+
+    // ID du client sélectionné pour suppression
+    // null = aucun client sélectionné, donc pas de modal affiché
+    private int? _idASupprimer = null;
+
+
+    // =========================================================
+    // INITIALISATION DE LA PAGE
+    // =========================================================
+
+    // Méthode appelée automatiquement au chargement initial de la page
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerClients();
+    }
+
+
+    // =========================================================
+    // MÉTHODES MÉTIER / UI
+    // =========================================================
+
+    // Charge tous les clients depuis le service
+    private async Task ChargerClients()
+    {
+        _isLoading = true;
+
+        _clients = await ClientService.GetAllAsync();
+
+        _isLoading = false;
+    }
+
+    // Filtre les clients en temps réel selon le texte saisi
+    private async Task FiltrerClients(ChangeEventArgs e)
+    {
+    termRecherche = e.Value?.ToString() ?? string.Empty;
+
+    if (string.IsNullOrWhiteSpace(termRecherche))
+        await ChargerClients();
+    else
+        _clients = await ClientService.SearchAsync(termRecherche);
+    }
+
+
+    // Ouvre le modal de confirmation en mémorisant l’ID du client à supprimer
+    private void ConfirmerSuppression(int id)
+    {
+        _idASupprimer = id;
+    }
+
+    // Ferme le modal sans effectuer de suppression
+    private void AnnulerSuppression()
+    {
+        _idASupprimer = null;
+    }
+
+    // Supprime logiquement le client sélectionné puis recharge la liste
+    private async Task ExecuterSuppression()
+    {
+        if (_idASupprimer.HasValue)
+        {
+            await ClientService.DeleteAsync(_idASupprimer.Value);
+
+            _idASupprimer = null;
+
+            // Recharge la liste pour refléter la suppression
+            await ChargerClients();
+        }
+    }
+}
+
+

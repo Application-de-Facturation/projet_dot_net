@@ -1,0 +1,283 @@
+@* =========================================================
+   Fichier : FacturationApp/Pages/Clients/Form.razor
+   Rôle :
+   - créer un nouveau client
+   - modifier un client existant
+   Cette page gère donc 2 modes :
+   1) mode création
+   2) mode édition
+   ========================================================= *@
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+
+@* Route pour créer un nouveau client *@
+@page "/clients/nouveau"
+
+@* Route pour modifier un client existant
+   {Id:int} = paramètre d’URL entier, ex: /clients/editer/5 *@
+@page "/clients/editer/{Id:int}"
+
+
+
+
+@* =========================================================
+   IMPORTS ET INJECTIONS
+   ========================================================= *@
+
+@* Entité Client (modèle des données utilisées dans le formulaire) *@
+@using FacturationApp.Data.Entities
+
+@* Interface du service métier pour accéder aux opérations CRUD des clients *@
+@using FacturationApp.Services.Interfaces
+
+@* Injection du service client :
+   permet de charger, créer et modifier les clients *@
+@inject IClientService ClientService
+
+@* Injection du service de navigation :
+   permet de rediriger l’utilisateur vers une autre page *@
+@inject NavigationManager NavigationManager
+
+
+@* =========================================================
+   TITRE DE L’ONGLET DU NAVIGATEUR
+   ========================================================= *@
+
+@* Si Id existe => mode édition
+   Sinon => mode création *@
+<PageTitle>@(Id.HasValue ? "Modifier le client" : "Nouveau client")</PageTitle>
+
+
+@* =========================================================
+   EN-TÊTE VISUEL DE LA PAGE
+   ========================================================= *@
+
+<div class="d-flex align-items-center mb-4">
+
+    @* Bouton retour vers la liste des clients *@
+    <a href="/clients" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+
+    @* Titre principal qui change selon le mode (création / édition) *@
+    <h2>@(Id.HasValue ? "Modifier le client" : "Nouveau client")</h2>
+</div>
+
+
+@* =========================================================
+   AFFICHAGE CONDITIONNEL
+   - si _client est null => on attend le chargement
+   - sinon => on affiche le formulaire
+   ========================================================= *@
+
+@if (_client == null)
+{
+    <p><em>Chargement...</em></p>
+}
+else
+{
+    @* =====================================================
+       FORMULAIRE BLAZOR
+       EditForm remplace la balise HTML <form> classique
+       ===================================================== *@
+    <EditForm Model="_client" 
+              OnValidSubmit="Enregistrer" 
+              FormName="formulaire-client">
+              
+        @* Active la validation basée sur les Data Annotations
+           définies dans la classe Client.cs
+           ex: [Required], [MaxLength], [EmailAddress] *@
+        <DataAnnotationsValidator />
+
+        @* Affiche un résumé global de toutes les erreurs
+           de validation du formulaire *@
+        <ValidationSummary class="alert alert-danger" />
+
+        @* Carte Bootstrap pour mieux présenter le formulaire *@
+        <div class="card shadow-sm">
+
+            @* Corps principal de la carte *@
+            <div class="card-body">
+
+                @* Organisation en grille Bootstrap *@
+                <div class="row">
+
+                    @* ===============================
+                       CHAMP : NOM
+                       - obligatoire
+                       - lié à _client.Nom
+                       =============================== *@
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">
+                            Nom <span class="text-danger">*</span>
+                        </label>
+
+                        @* InputText = composant Blazor pour saisir du texte
+                           @bind-Value lie la saisie à la propriété _client.Nom *@
+                        <InputText @bind-Value="_client.Nom"
+                                   class="form-control"
+                                   placeholder="Nom complet ou raison sociale" />
+
+                        @* Message d’erreur spécifique au champ Nom *@
+                        <ValidationMessage For="@(() => _client.Nom)"
+                                           class="text-danger small" />
+                    </div>
+
+
+                    @* ===============================
+                       CHAMP : MATRICULE FISCAL
+                       =============================== *@
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Matricule Fiscal</label>
+
+                        <InputText @bind-Value="_client.MatriculeFiscal"
+                                   class="form-control"
+                                   placeholder="ex: 1234567A/P/M/000" />
+
+                        @* Message d’erreur spécifique au champ MatriculeFiscal *@
+                        <ValidationMessage For="@(() => _client.MatriculeFiscal)"
+                                           class="text-danger small" />
+                    </div>
+
+
+                    @* ===============================
+                       CHAMP : EMAIL
+                       =============================== *@
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Email</label>
+
+                        <InputText @bind-Value="_client.Email"
+                                   class="form-control"
+                                   placeholder="contact@entreprise.tn"
+                                   type="email" />
+
+                        @* Message d’erreur spécifique au champ Email *@
+                        <ValidationMessage For="@(() => _client.Email)"
+                                           class="text-danger small" />
+                    </div>
+
+
+                    @* ===============================
+                       CHAMP : TÉLÉPHONE
+                       =============================== *@
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Téléphone</label>
+
+                        <InputText @bind-Value="_client.Telephone"
+                                   class="form-control"
+                                   placeholder="+216 XX XXX XXX" />
+                    </div>
+
+
+                    @* ===============================
+                       CHAMP : ADRESSE
+                       =============================== *@
+                    <div class="col-12 mb-3">
+                        <label class="form-label">Adresse</label>
+
+                        @* InputTextArea = zone de texte multiligne *@
+                        <InputTextArea @bind-Value="_client.Adresse"
+                                       class="form-control"
+                                       rows="3"
+                                       placeholder="Adresse complète" />
+                    </div>
+
+                </div>
+            </div>
+
+
+            @* Pied de la carte : boutons d’action *@
+            <div class="card-footer d-flex gap-2">
+
+                @* Bouton submit :
+                   déclenche la méthode Enregistrer()
+                   seulement si le formulaire est valide *@
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i>
+                    @(Id.HasValue ? "Enregistrer les modifications" : "Créer le client")
+                </button>
+
+                @* Bouton annuler : retour à la liste sans sauvegarde *@
+                <a href="/clients" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> Annuler
+                </a>
+            </div>
+        </div>
+
+    </EditForm>
+}
+
+
+@code {
+    // =========================================================
+    // PARAMÈTRES ET VARIABLES
+    // =========================================================
+
+    // Paramètre récupéré depuis l’URL :
+    // - null => création
+    // - valeur => édition d’un client existant
+    [Parameter]
+    public int? Id { get; set; }
+
+    // Objet client utilisé comme modèle du formulaire
+    // null au début, puis chargé ou initialisé
+    private Client? _client;
+
+
+    // =========================================================
+    // INITIALISATION DE LA PAGE
+    // =========================================================
+
+    // Cette méthode est appelée automatiquement au chargement de la page
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            // =========================
+            // MODE ÉDITION
+            // =========================
+
+            // Charger le client depuis la base de données
+            _client = await ClientService.GetByIdAsync(Id.Value);
+
+            // Si l’ID n’existe pas, redirection vers la liste
+            if (_client == null)
+                NavigationManager.NavigateTo("/clients");
+        }
+        else
+        {
+            // =========================
+            // MODE CRÉATION
+            // =========================
+
+            // Créer un nouvel objet vide pour le formulaire
+            _client = new Client();
+        }
+    }
+
+
+    // =========================================================
+    // SAUVEGARDE DU FORMULAIRE
+    // =========================================================
+
+    private async Task Enregistrer()
+    {
+        // Cette méthode est exécutée seulement si le formulaire est valide
+
+        if (Id.HasValue)
+        {
+            // Si on a un ID => modification d’un client existant
+            await ClientService.UpdateAsync(_client!);
+        }
+        else
+        {
+            // Sinon => création d’un nouveau client
+            await ClientService.CreateAsync(_client!);
+        }
+
+        // Après sauvegarde, retour à la liste des clients
+        NavigationManager.NavigateTo("/clients");
+    }
+}
