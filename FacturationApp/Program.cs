@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using FacturationApp.Data;                          // Pour AppDbContext
 using FacturationApp.Services.Interfaces;           // Pour IClientService ← MANQUAIT
 using FacturationApp.Services.Implementations;      // Pour ClientService  ← MANQUAIT
+using FacturationApp.Services.Interfaces;
+using FacturationApp.Services.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +32,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IClientService, ClientService>();
 
 // M2 ajoutera ici ses services (Produit, Facture, Parametre...)
-// M3 ajoutera ici ses services (Analytique, Auth...)
+
+// M3 — Analytique
+builder.Services.AddScoped<IAnalytiqueService, AnalytiqueService>();
 
 //
 // 4. API REST + SWAGGER  ← DOIT ÊTRE AVANT builder.Build()
