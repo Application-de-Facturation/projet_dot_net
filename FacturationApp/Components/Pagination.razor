@@ -1,0 +1,74 @@
+@* Composant réutilisable de pagination
+   Utilisé sur toutes les listes : Clients, Produits, Factures *@
+
+@if (NombrePages > 1)
+{
+    <nav aria-label="Pagination">
+        <ul class="pagination justify-content-center">
+
+            @* Bouton Précédent *@
+            <li class="page-item @(PageCourante == 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="() => ChangerPage(PageCourante - 1)">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </li>
+
+            @* Numéros de pages *@
+            @for (int i = 1; i <= NombrePages; i++)
+{
+    var num = i;
+    <li class="page-item @(PageCourante == num ? "active" : "")">
+        <button class="page-link" @onclick="() => ChangerPage(num)">
+            @num
+        </button>
+    </li>
+}
+
+            @* Bouton Suivant *@
+            <li class="page-item @(PageCourante == NombrePages ? "disabled" : "")">
+                <button class="page-link" @onclick="() => ChangerPage(PageCourante + 1)">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </li>
+
+        </ul>
+    </nav>
+
+    @* Résumé : "Page 1 sur 5 — 42 éléments" *@
+    <p class="text-center text-muted small">
+        Page @PageCourante sur @NombrePages — @TotalElements élément(s)
+    </p>
+}
+
+@code {
+    // ── Paramètres ────────────────────────────────────────────────────────
+
+    /// <summary>Page actuellement affichée (commence à 1).</summary>
+    [Parameter]
+    public int PageCourante { get; set; } = 1;
+
+    /// <summary>Nombre d'éléments par page.</summary>
+    [Parameter]
+    public int PageSize { get; set; } = 10;
+
+    /// <summary>Nombre total d'éléments dans la liste complète.</summary>
+    [Parameter]
+    public int TotalElements { get; set; } = 0;
+
+    /// <summary>Événement déclenché quand l'utilisateur change de page.</summary>
+    [Parameter]
+    public EventCallback<int> OnPageChanged { get; set; }
+
+    // ── Calculé ───────────────────────────────────────────────────────────
+
+    private int NombrePages => TotalElements == 0 ? 1
+        : (int)Math.Ceiling((double)TotalElements / PageSize);
+
+    // ── Méthodes ──────────────────────────────────────────────────────────
+
+    private async Task ChangerPage(int page)
+    {
+        if (page < 1 || page > NombrePages) return;
+        await OnPageChanged.InvokeAsync(page);
+    }
+}

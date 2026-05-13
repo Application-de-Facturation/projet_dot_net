@@ -1,0 +1,188 @@
+@page "/dashboard/fiscal"
+@using FacturationApp.Services.DTOs
+
+<PageTitle>Dashboard Fiscal</PageTitle>
+
+@* ── En-tête ───────────────────────────────────────────────────── *@
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-bar-chart-fill text-primary"></i>
+        Dashboard Fiscal
+    </h2>
+    <span class="badge bg-warning text-dark">
+        <i class="bi bi-clock"></i>
+        Données de démonstration
+    </span>
+</div>
+
+@* ── Cards KPI ─────────────────────────────────────────────────── *@
+<div class="row g-3 mb-4">
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted small mb-1">TVA Totale Collectée</p>
+                        <h4 class="fw-bold text-primary">@_tvaTotale.ToString("N3") DT</h4>
+                    </div>
+                    <i class="bi bi-percent fs-2 text-primary opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted small mb-1">Timbre Fiscal Total</p>
+                        <h4 class="fw-bold text-success">@_timbreTotal.ToString("N3") DT</h4>
+                    </div>
+                    <i class="bi bi-stamp fs-2 text-success opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted small mb-1">Factures Validées</p>
+                        <h4 class="fw-bold text-info">@_nombreFactures</h4>
+                    </div>
+                    <i class="bi bi-receipt fs-2 text-info opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@* ── Tableau TVA par taux ──────────────────────────────────────── *@
+<div class="row g-3">
+
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-table text-primary"></i>
+                TVA Collectée par Taux
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Taux TVA</th>
+                            <th class="text-end">Montant (DT)</th>
+                            <th class="text-end">%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _tvaParTaux)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">@item.Taux %</span>
+                                </td>
+                                <td class="text-end fw-semibold">
+                                    @item.MontantTVA.ToString("N3")
+                                </td>
+                                <td class="text-end text-muted">
+                                    @((_tvaTotale > 0
+                                        ? (item.MontantTVA / _tvaTotale * 100)
+                                        : 0).ToString("N1")) %
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td><strong>Total</strong></td>
+                            <td class="text-end fw-bold">@_tvaTotale.ToString("N3")</td>
+                            <td class="text-end fw-bold">100 %</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @* ── Répartition visuelle ──────────────────────────────────── *@
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-pie-chart-fill text-primary"></i>
+                Répartition TVA
+            </div>
+            <div class="card-body">
+                @foreach (var item in _tvaParTaux)
+                {
+                    var pourcentage = _tvaTotale > 0
+                        ? (double)(item.MontantTVA / _tvaTotale * 100)
+                        : 0;
+                    var couleur = item.Taux switch
+                    {
+                        7m   => "bg-info",
+                        13m  => "bg-warning",
+                        19m  => "bg-danger",
+                        _    => "bg-secondary"
+                    };
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="fw-semibold">TVA @item.Taux %</span>
+                            <span class="text-muted">
+                                @item.MontantTVA.ToString("N3") DT
+                                (@pourcentage.ToString("N1") %)
+                            </span>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar @couleur"
+                                 style="width: @pourcentage.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%">
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* Timbre fiscal *@
+                <hr />
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">
+                        <i class="bi bi-stamp text-success"></i>
+                        Timbre Fiscal
+                    </span>
+                    <span class="badge bg-success fs-6">
+                        @_timbreTotal.ToString("N3") DT
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    // ── Données fictives (remplacées par IAnalytiqueService quand M2 livre) ──
+
+    private List<TVAParTauxDto> _tvaParTaux = new();
+    private decimal _tvaTotale = 0;
+    private decimal _timbreTotal = 0;
+    private int _nombreFactures = 0;
+
+    protected override void OnInitialized()
+    {
+        // Données fictives de démonstration
+        _tvaParTaux = new List<TVAParTauxDto>
+        {
+            new() { Taux = 7m,  MontantTVA = 245.500m },
+            new() { Taux = 13m, MontantTVA = 618.750m },
+            new() { Taux = 19m, MontantTVA = 1204.300m },
+        };
+
+        _tvaTotale     = _tvaParTaux.Sum(t => t.MontantTVA);
+        _timbreTotal   = 47.000m;  // 47 factures × 1.000 DT
+        _nombreFactures = 47;
+    }
+}
