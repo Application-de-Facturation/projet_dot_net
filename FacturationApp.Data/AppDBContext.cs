@@ -1,79 +1,170 @@
+// FacturationApp.Data/AppDbContext.cs
+// M1 : Client (structure de base)
+// M2 : Categorie, Produit, Parametre, Facture, LigneFacture + seed data
+
 using Microsoft.EntityFrameworkCore;
 using FacturationApp.Data.Entities;
 
 namespace FacturationApp.Data;
 
 /// <summary>
-/// AppDbContext est le chef d'orchestre entre le code C# (application)
-/// et la base de données (tables SQL).
-/// Il expose les tables sous forme de DbSet.
+/// AppDbContext est le chef d'orchestre entre le code C# et la base de données.
+/// Il expose toutes les tables sous forme de DbSet.
 /// </summary>
 public class AppDbContext : DbContext
 {
-    // Le constructeur reçoit les options (connexion SQL Server, SQLite, etc.)
-    // Ces options sont injectées depuis Program.cs
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-    {
-    }
+	public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    // ----------------- LES TABLES (DbSet = tables SQL) -----------------
-    /// <summary>
-    /// Table Client.
-    /// </summary>
-    public DbSet<Client> Clients { get; set; }
+	// ══════════════════════════════════════════════════════════════════════════
+	// TABLES — DbSet = tables SQL
+	// ══════════════════════════════════════════════════════════════════════════
 
-    // M2 ajoutera ici : Produits, Categories, Factures, LignesFacture, Parametres
-    // M3 ajoutera ici : Utilisateurs (si extension validée)
+	// M1
+	public DbSet<Client> Clients { get; set; }
 
-    // ----------------- CONFIGURATION AVANCÉE -----------------
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
+	// M2
+	public DbSet<Categorie> Categories { get; set; }
+	public DbSet<Produit> Produits { get; set; }
+	public DbSet<Parametre> Parametres { get; set; }
+	public DbSet<Facture> Factures { get; set; }
+	public DbSet<LigneFacture> LignesFacture { get; set; }
 
-        // Configuration explicite de l'entité Client
-        modelBuilder.Entity<Client>(entity =>
-        {
-            // Nom de la table
-            entity.ToTable("Client");
+	// M3 ajoutera ici : Utilisateurs (si extension validée)
 
-            // Clé primaire auto-incrémentée
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.Id).ValueGeneratedOnAdd();
+	// ══════════════════════════════════════════════════════════════════════════
+	// CONFIGURATION AVANCÉE
+	// ══════════════════════════════════════════════════════════════════════════
+	protected override void OnModelCreating(ModelBuilder modelBuilder)
+	{
+		base.OnModelCreating(modelBuilder);
 
-            // Colonnes
-            entity.Property(c => c.Nom)
-                .IsRequired()
-                .HasMaxLength(150)
-                .HasColumnType("nvarchar(150)");
+		// ── CLIENT (M1 — ne pas modifier) ─────────────────────────────────────
+		modelBuilder.Entity<Client>(entity =>
+		{
+			entity.ToTable("Client");
+			entity.HasKey(c => c.Id);
+			entity.Property(c => c.Id).ValueGeneratedOnAdd();
+			entity.Property(c => c.Nom).IsRequired().HasMaxLength(150);
+			entity.Property(c => c.Email).HasMaxLength(200);
+			entity.Property(c => c.Telephone).HasMaxLength(20);
+			entity.Property(c => c.Adresse).HasMaxLength(500);
+			entity.Property(c => c.MatriculeFiscal).HasMaxLength(50);
+			entity.Property(c => c.IsDeleted).HasDefaultValue(false);
+			entity.HasIndex(c => c.Nom)
+				  .HasDatabaseName("IX_Client_Nom")
+				  .HasFilter("[IsDeleted] = 0");
+		});
 
-            entity.Property(c => c.Email)
-                .HasMaxLength(200)
-                .HasColumnType("nvarchar(200)");
+		// ── CATEGORIE (M2) ─────────────────────────────────────────────────────
+		modelBuilder.Entity<Categorie>(entity =>
+		{
+			entity.ToTable("Categorie");
+			entity.HasKey(c => c.Id);
+			entity.Property(c => c.Nom).IsRequired().HasMaxLength(100);
 
-            entity.Property(c => c.Telephone)
-                .HasMaxLength(20)
-                .HasColumnType("nvarchar(20)");
+			// Un-à-plusieurs : Categorie → Produits
+			entity.HasMany(c => c.Produits)
+				  .WithOne(p => p.Categorie)
+				  .HasForeignKey(p => p.CategorieId)
+				  .OnDelete(DeleteBehavior.Restrict); // on ne supprime pas une catégorie qui a des produits
 
-            entity.Property(c => c.Adresse)
-                .HasMaxLength(500)
-                .HasColumnType("nvarchar(500)");
+			// ── SEED DATA — 4 catégories initiales ──
+			entity.HasData(
+				new Categorie { Id = 1, Nom = "Informatique" },
+				new Categorie { Id = 2, Nom = "Bureautique" },
+				new Categorie { Id = 3, Nom = "Services" },
+				new Categorie { Id = 4, Nom = "Autres" }
+			);
+		});
 
-            entity.Property(c => c.MatriculeFiscal)
-                .HasMaxLength(50)
-                .HasColumnType("nvarchar(50)");
+		// ── PRODUIT (M2) ───────────────────────────────────────────────────────
+		modelBuilder.Entity<Produit>(entity =>
+		{
+			entity.ToTable("Produit");
+			entity.HasKey(p => p.Id);
+			entity.Property(p => p.Designation).IsRequired().HasMaxLength(200);
+			entity.Property(p => p.PrixUnitaireHT).HasColumnType("decimal(18,3)");
+			entity.Property(p => p.TauxTVA).HasColumnType("decimal(5,2)");
+			entity.Property(p => p.IsDeleted).HasDefaultValue(false);
 
-            // Valeur par défaut pour IsDeleted
-            entity.Property(c => c.IsDeleted)
-                .HasDefaultValue(false);
+			// Index pour recherche rapide sur produits actifs
+			entity.HasIndex(p => p.Designation)
+				  .HasDatabaseName("IX_Produit_Designation")
+				  .HasFilter("[IsDeleted] = 0");
+		});
 
-            // Valeur par défaut pour CreatedAt
-            entity.Property(c => c.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+		// ── PARAMETRE (M2) ─────────────────────────────────────────────────────
+		modelBuilder.Entity<Parametre>(entity =>
+		{
+			entity.ToTable("Parametre");
+			entity.HasKey(p => p.Id);
+			entity.Property(p => p.Cle).IsRequired().HasMaxLength(50);
+			entity.Property(p => p.Valeur).IsRequired().HasMaxLength(200);
 
-            // Index pour recherche rapide par nom
-            entity.HasIndex(c => c.Nom)
-                .HasDatabaseName("IX_Client_Nom")
-                .HasFilter("[IsDeleted] = 0");
-        });
-    }
+			// Index unique sur Cle — chaque clé de config est unique
+			entity.HasIndex(p => p.Cle)
+				  .IsUnique()
+				  .HasDatabaseName("UX_Parametre_Cle");
+
+			// ── SEED DATA — paramètres initiaux ──
+			entity.HasData(
+				new Parametre { Id = 1, Cle = "TimbreFiscal", Valeur = "1.000" },
+				new Parametre { Id = 2, Cle = "FacturePrefixe", Valeur = "FAC" },
+				new Parametre { Id = 3, Cle = "FactureCompteur", Valeur = "0" }
+			);
+		});
+
+		// ── FACTURE (M2) ───────────────────────────────────────────────────────
+		modelBuilder.Entity<Facture>(entity =>
+		{
+			entity.ToTable("Facture");
+			entity.HasKey(f => f.Id);
+			entity.Property(f => f.Numero).HasMaxLength(20);
+			entity.Property(f => f.Statut).IsRequired().HasMaxLength(20).HasDefaultValue("Brouillon");
+			entity.Property(f => f.TotalHT).HasColumnType("decimal(18,3)");
+			entity.Property(f => f.TotalTVA).HasColumnType("decimal(18,3)");
+			entity.Property(f => f.TotalTTC).HasColumnType("decimal(18,3)");
+			entity.Property(f => f.Timbre).HasColumnType("decimal(18,3)");
+			entity.Property(f => f.NetAPayer).HasColumnType("decimal(18,3)");
+
+			// Clé étrangère vers Client (M1)
+			entity.HasOne(f => f.Client)
+				  .WithMany()
+				  .HasForeignKey(f => f.ClientId)
+				  .OnDelete(DeleteBehavior.Restrict);
+
+			// Index pour les requêtes analytiques de M3 (filtrage par statut)
+			entity.HasIndex(f => f.Statut).HasDatabaseName("IX_Facture_Statut");
+			entity.HasIndex(f => f.DateCreation).HasDatabaseName("IX_Facture_DateCreation");
+		});
+
+		// ── LIGNE FACTURE (M2) ─────────────────────────────────────────────────
+		modelBuilder.Entity<LigneFacture>(entity =>
+		{
+			entity.ToTable("LigneFacture");
+			entity.HasKey(l => l.Id);
+
+			// Snapshots — decimal(18,3) et decimal(5,2)
+			entity.Property(l => l.Designation).IsRequired().HasMaxLength(200);
+			entity.Property(l => l.PrixUnitaireHT).HasColumnType("decimal(18,3)");
+			entity.Property(l => l.TauxTVA).HasColumnType("decimal(5,2)");
+
+			// Montants calculés
+			entity.Property(l => l.MontantHT).HasColumnType("decimal(18,3)");
+			entity.Property(l => l.MontantTVA).HasColumnType("decimal(18,3)");
+			entity.Property(l => l.MontantTTC).HasColumnType("decimal(18,3)");
+
+			// Clé étrangère vers Facture — suppression en cascade des lignes si la facture est supprimée
+			entity.HasOne(l => l.Facture)
+				  .WithMany(f => f.Lignes)
+				  .HasForeignKey(l => l.FactureId)
+				  .OnDelete(DeleteBehavior.Cascade);
+
+			// Clé étrangère vers Produit — Restrict pour conserver l'historique
+			entity.HasOne(l => l.Produit)
+				  .WithMany(p => p.LignesFacture)
+				  .HasForeignKey(l => l.ProduitId)
+				  .OnDelete(DeleteBehavior.Restrict);
+		});
+	}
 }
