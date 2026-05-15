@@ -19,6 +19,55 @@ public class ProduitService : IProduitService
 		_context = context;
 	}
 
+	/// <summary>
+	/// Retourne les produits dont le stock est inférieur ou égal au seuil d'alerte.
+	/// Utilisé pour afficher des notifications d'alerte.
+	/// </summary>
+	public async Task<List<Produit>> GetLowStockAsync()
+	{
+		return await _context.Produits
+			.Where(p => !p.IsDeleted && p.StockQuantity <= p.StockAlertThreshold)
+			.Include(p => p.Categorie)
+			.OrderBy(p => p.StockQuantity)
+			.ToListAsync();
+	}
+
+	/// <summary>
+	/// Enregistre un mouvement de stock (ENTREE ou SORTIE) et met à jour la quantité en stock.
+	/// </summary>
+	public async Task EnregistrerMouvementAsync(int produitId, int quantite, string type, string? commentaire = null)
+	{
+		var produit = await _context.Produits.FindAsync(produitId)
+			?? throw new InvalidOperationException($"Produit Id={produitId} introuvable.");
+
+		if (type == "ENTREE")
+		{
+			produit.StockQuantity += quantite;
+		}
+		else if (type == "SORTIE")
+		{
+			if (produit.StockQuantity < quantite)
+				throw new InvalidOperationException("Stock insuffisant pour la sortie demandée.");
+			produit.StockQuantity -= quantite;
+		}
+		else
+		{
+			throw new ArgumentException("Type de mouvement invalide. Utiliser 'ENTREE' ou 'SORTIE'.");
+		}
+
+		_context.Produits.Update(produit);
+		_context.StockMouvements.Add(new StockMouvement
+		{
+			ProduitId = produitId,
+			Quantite = quantite,
+			Type = type,
+			Commentaire = commentaire,
+			Date = DateTime.UtcNow
+		});
+
+		await _context.SaveChangesAsync();
+	}
+
 	// ─── READ ─────────────────────────────────────────────────────────────────
 
 	/// <summary>

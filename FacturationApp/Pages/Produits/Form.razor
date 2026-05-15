@@ -1,0 +1,191 @@
+﻿@* FacturationApp/Pages/Produits/Form.razor *@
+
+@page "/produits/nouveau"
+@page "/produits/modifier/{Id:int}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@inject IProduitService ProduitService
+@inject NavigationManager Navigation
+
+<PageTitle>@(EstEnCreation ? "Nouveau produit" : "Modifier le produit")</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/produits" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="mb-0">
+        <i class="bi bi-box-seam me-2"></i>
+        @(EstEnCreation ? "Nouveau produit" : "Modifier le produit")
+    </h2>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement...</p>
+    </div>
+}
+else
+{
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <EditForm Model="produit" OnValidSubmit="Soumettre">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                Désignation <span class="text-danger">*</span>
+                            </label>
+                            <InputText class="form-control"
+                                       placeholder="Ex : Ordinateur portable Dell"
+                                       @bind-Value="produit.Designation" />
+                            <ValidationMessage For="@(() => produit.Designation)" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                Catégorie <span class="text-danger">*</span>
+                            </label>
+                            <InputSelect class="form-select" @bind-Value="produit.CategorieId">
+                                <option value="0">— Sélectionner une catégorie —</option>
+                                @foreach (var cat in categories)
+                                {
+                                    <option value="@cat.Id">@cat.Nom</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => produit.CategorieId)" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                Prix unitaire HT (DT) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <InputNumber class="form-control" placeholder="0.000"
+                                             @bind-Value="produit.PrixUnitaireHT" />
+                                <span class="input-group-text">DT</span>
+                            </div>
+                            <ValidationMessage For="@(() => produit.PrixUnitaireHT)" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                Taux TVA <span class="text-danger">*</span>
+                            </label>
+                            <InputSelect class="form-select" @bind-Value="produit.TauxTVA">
+                                <option value="0">0 % — Exonéré</option>
+                                <option value="7">7 %</option>
+                                <option value="13">13 %</option>
+                                <option value="19">19 %</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => produit.TauxTVA)" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Quantité en stock</label>
+                            <InputNumber class="form-control" @bind-Value="produit.StockQuantity" />
+                            <small class="text-muted">Quantité disponible pour les ventes (utilisée pour vérifier le stock lors de la validation des factures).</small>
+                        </div>
+
+                        @if (produit.PrixUnitaireHT > 0)
+                        {
+                            <div class="alert alert-light border mb-4">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">Prix HT :</span>
+                                    <strong>@produit.PrixUnitaireHT.ToString("F3") DT</strong>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted">TVA (@produit.TauxTVA %) :</span>
+                                    <strong>@((produit.PrixUnitaireHT * produit.TauxTVA / 100).ToString("F3")) DT</strong>
+                                </div>
+                                <hr class="my-2" />
+                                <div class="d-flex justify-content-between">
+                                    <span class="fw-bold">Prix TTC :</span>
+                                    <strong class="text-primary fs-5">
+                                        @((produit.PrixUnitaireHT * (1 + produit.TauxTVA / 100)).ToString("F3")) DT
+                                    </strong>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(messageErreur))
+                        {
+                            <div class="alert alert-danger">
+                                <i class="bi bi-exclamation-triangle me-2"></i>@messageErreur
+                            </div>
+                        }
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                    <text>Enregistrement...</text>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-check-lg me-1"></i>
+                                    <text>@(EstEnCreation ? "Créer le produit" : "Enregistrer")</text>
+                                }
+                            </button>
+                            <a href="/produits" class="btn btn-outline-secondary">Annuler</a>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Produit produit = new();
+    private List<Categorie> categories = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string messageErreur = string.Empty;
+
+    private bool EstEnCreation => Id is null || Id == 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ProduitService.GetAllCategoriesAsync();
+
+        if (!EstEnCreation)
+        {
+            var existant = await ProduitService.GetByIdAsync(Id!.Value);
+            if (existant is null)
+            {
+                Navigation.NavigateTo("/produits");
+                return;
+            }
+            produit = existant;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task Soumettre()
+    {
+        messageErreur = string.Empty;
+        isSaving = true;
+        try
+        {
+            if (EstEnCreation) await ProduitService.CreateAsync(produit);
+            else await ProduitService.UpdateAsync(produit);
+            Navigation.NavigateTo("/produits");
+        }
+        catch (Exception ex)
+        {
+            messageErreur = $"Erreur : {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

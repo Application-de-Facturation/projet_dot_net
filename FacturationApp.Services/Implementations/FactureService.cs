@@ -201,13 +201,104 @@ public class FactureService : IFactureService
 		facture.TotalTVA = totalTVA;
 		facture.TotalTTC = totalTTC;
 
+		// Étape 3.5 — Vérifier les stocks pour chaque ligne avant de valider
+		var insufficient = new List<string>();
+		foreach (var ligne in facture.Lignes)
+		{
+			var produit = await _context.Produits.FindAsync(ligne.ProduitId)
+				?? throw new InvalidOperationException($"Produit Id={ligne.ProduitId} introuvable.");
+
+			if (produit.StockQuantity < ligne.Quantite)
+			{
+				insufficient.Add($"{produit.Designation} (disponible: {produit.StockQuantity}, demandé: {ligne.Quantite})");
+			}
+		}
+
+		if (insufficient.Any())
+		{
+			throw new InvalidOperationException($"Stock insuffisant pour : {string.Join(", ", insufficient)}");
+		}
+
 		// Étape 4 — Net à payer
 		facture.NetAPayer = facture.TotalTTC + facture.Timbre;
+
+      // Étape 4.5 — Décrémenter le stock et enregistrer les mouvements
+		foreach (var ligne in facture.Lignes)
+		{
+			var produit = await _context.Produits.FindAsync(ligne.ProduitId)
+				?? throw new InvalidOperationException($"Produit Id={ligne.ProduitId} introuvable.");
+
+			produit.StockQuantity -= ligne.Quantite;
+			_context.Produits.Update(produit);
+
+			// Enregistrer le mouvement de stock
+			var mouvement = new StockMouvement
+			{
+				ProduitId = produit.Id,
+				Quantite = ligne.Quantite,
+				Type = "SORTIE",
+				Commentaire = $"Facture {facture.Numero}",
+				Date = DateTime.UtcNow
+			};
+
+			_context.StockMouvements.Add(mouvement);
+		}
 
 		// Étape 5 — Passage au statut Validée
 		facture.Statut = "Validée";
 		facture.DateValidation = DateTime.UtcNow;
 
+		await _context.SaveChangesAsync();
+	}
+
+	public async Task UpdateAsync(int factureId, int clientId, List<LigneFacture> lignes)
+	{
+		var facture = await _context.Factures
+			.Include(f => f.Lignes)
+			.FirstOrDefaultAsync(f => f.Id == factureId)
+			?? throw new InvalidOperationException($"Facture Id={factureId} introuvable.");
+
+		if (facture.Statut != "Brouillon")
+			throw new InvalidOperationException(
+				"Impossible de modifier une facture validée — elle est immuable.");
+
+		// Mettre à jour le client
+		facture.ClientId = clientId;
+
+		// Supprimer toutes les anciennes lignes
+		_context.LignesFacture.RemoveRange(facture.Lignes);
+
+		// Recréer les nouvelles lignes avec snapshots depuis la base
+		var nouvLignes = new List<LigneFacture>();
+		foreach (var ligne in lignes)
+		{
+			var produit = await _context.Produits.FindAsync(ligne.ProduitId)
+				?? throw new InvalidOperationException(
+					$"Produit Id={ligne.ProduitId} introuvable.");
+
+			var nouvLigne = new LigneFacture
+			{
+				FactureId = factureId,
+				ProduitId = produit.Id,
+				Designation = produit.Designation,
+				PrixUnitaireHT = produit.PrixUnitaireHT,
+				TauxTVA = produit.TauxTVA,
+				Quantite = ligne.Quantite
+			};
+
+			nouvLigne.MontantHT = nouvLigne.Quantite * nouvLigne.PrixUnitaireHT;
+			nouvLigne.MontantTVA = nouvLigne.MontantHT * nouvLigne.TauxTVA / 100;
+			nouvLigne.MontantTTC = nouvLigne.MontantHT + nouvLigne.MontantTVA;
+
+			nouvLignes.Add(nouvLigne);
+		}
+
+		// Recalculer les totaux de la facture
+		facture.TotalHT = nouvLignes.Sum(l => l.MontantHT);
+		facture.TotalTVA = nouvLignes.Sum(l => l.MontantTVA);
+		facture.TotalTTC = nouvLignes.Sum(l => l.MontantTTC);
+
+		_context.LignesFacture.AddRange(nouvLignes);
 		await _context.SaveChangesAsync();
 	}
 

@@ -31,6 +31,16 @@ public interface IProduitService
 	/// </summary>
 	Task<List<Categorie>> GetAllCategoriesAsync();
 
+	/// <summary>
+	/// Retourne les produits en alerte de stock.
+	/// </summary>
+	Task<List<Produit>> GetLowStockAsync();
+
+	/// <summary>
+	/// Enregistre un mouvement de stock (ENTREE/SORTIE) et met à jour la quantité.
+	/// </summary>
+	Task EnregistrerMouvementAsync(int produitId, int quantite, string type, string? commentaire = null);
+
 	// ─── WRITE ────────────────────────────────────────────────────────────────
 
 	/// <summary>Crée un nouveau produit en base.</summary>

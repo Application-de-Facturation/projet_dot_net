@@ -29,6 +29,9 @@ public class AppDbContext : DbContext
 	public DbSet<Facture> Factures { get; set; }
 	public DbSet<LigneFacture> LignesFacture { get; set; }
 
+	// Stock mouvements
+	public DbSet<StockMouvement> StockMouvements { get; set; }
+
 	// M3 ajoutera ici : Utilisateurs (si extension validée)
 
 	// ══════════════════════════════════════════════════════════════════════════
@@ -53,6 +56,21 @@ public class AppDbContext : DbContext
 			entity.HasIndex(c => c.Nom)
 				  .HasDatabaseName("IX_Client_Nom")
 				  .HasFilter("[IsDeleted] = 0");
+		});
+
+		// ── STOCK MOUVEMENT (nouvelle table pour suivre entrées/sorties) ──────
+		modelBuilder.Entity<StockMouvement>(entity =>
+		{
+			entity.ToTable("StockMouvement");
+			entity.HasKey(s => s.Id);
+			entity.Property(s => s.Quantite).IsRequired();
+			entity.Property(s => s.Type).IsRequired().HasMaxLength(20); // "ENTREE" ou "SORTIE"
+			entity.Property(s => s.Commentaire).HasMaxLength(500);
+
+			entity.HasOne(s => s.Produit)
+				.WithMany()
+				.HasForeignKey(s => s.ProduitId)
+				.OnDelete(DeleteBehavior.Cascade);
 		});
 
 		// ── CATEGORIE (M2) ─────────────────────────────────────────────────────

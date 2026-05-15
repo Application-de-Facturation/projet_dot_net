@@ -46,6 +46,8 @@ public interface IFactureService
 	/// </summary>
 	Task<Facture> CreateAsync(Facture facture, List<LigneFacture> lignes);
 
+	Task UpdateAsync(int factureId, int clientId, List<LigneFacture> lignes);
+
 	/// <summary>
 	/// Génère le prochain numéro de facture au format FAC-2025-0001.
 	/// Lit FactureCompteur depuis Parametre, incrémente, sauvegarde, retourne le numéro.

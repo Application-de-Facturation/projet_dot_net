@@ -268,6 +268,12 @@ namespace FacturationApp.Data.Migrations
                     b.Property<decimal>("PrixUnitaireHT")
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<int>("StockAlertThreshold")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("StockQuantity")
+                        .HasColumnType("INTEGER");
+
                     b.Property<decimal>("TauxTVA")
                         .HasColumnType("decimal(5,2)");
 
@@ -280,6 +286,37 @@ namespace FacturationApp.Data.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Produit", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.StockMouvement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Commentaire")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProduitId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProduitId");
+
+                    b.ToTable("StockMouvement", (string)null);
                 });
 
             modelBuilder.Entity("FacturationApp.Data.Entities.Facture", b =>
@@ -321,6 +358,17 @@ namespace FacturationApp.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Categorie");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.StockMouvement", b =>
+                {
+                    b.HasOne("FacturationApp.Data.Entities.Produit", "Produit")
+                        .WithMany()
+                        .HasForeignKey("ProduitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Produit");
                 });
 
             modelBuilder.Entity("FacturationApp.Data.Entities.Categorie", b =>

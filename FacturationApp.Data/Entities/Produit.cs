@@ -38,6 +38,13 @@ public class Produit
 
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+	// Stock
+	/// <summary>Quantité disponible en stock.</summary>
+	public int StockQuantity { get; set; } = 0;
+
+	/// <summary>Seuil d'alerte : si StockQuantity &lt;= StockAlertThreshold, afficher une alerte.</summary>
+	public int StockAlertThreshold { get; set; } = 0;
+
 	//Navigation inverse
 	public ICollection<LigneFacture> LignesFacture { get; set; } = new List<LigneFacture>();
 }

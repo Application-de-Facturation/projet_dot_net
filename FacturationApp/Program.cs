@@ -31,6 +31,7 @@ builder.Services.AddScoped<IClientService, ClientService>();
 builder.Services.AddScoped<IParametreService, ParametreService>();
 builder.Services.AddScoped<IProduitService, ProduitService>();
 builder.Services.AddScoped<IFactureService, FactureService>();
+builder.Services.AddScoped<IPdfService, PdfService>();
 // M3 — Analytique
 builder.Services.AddScoped<IAnalytiqueService, AnalytiqueService>();
 
@@ -52,7 +53,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    context.Database.EnsureCreated();
+	context.Database.Migrate();
 }
 
 // 
