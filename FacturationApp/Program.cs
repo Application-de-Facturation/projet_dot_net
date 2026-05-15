@@ -1,12 +1,8 @@
-// FacturationApp/Program.cs
-
 using FacturationApp.Components;
 using Microsoft.EntityFrameworkCore;
 using FacturationApp.Data;                          // Pour AppDbContext
 using FacturationApp.Services.Interfaces;           // Pour IClientService ← MANQUAIT
 using FacturationApp.Services.Implementations;      // Pour ClientService  ← MANQUAIT
-using FacturationApp.Services.Interfaces;
-using FacturationApp.Services.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,7 +28,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IClientService, ClientService>();
 
 // M2 ajoutera ici ses services (Produit, Facture, Parametre...)
-
+builder.Services.AddScoped<IParametreService, ParametreService>();
+builder.Services.AddScoped<IProduitService, ProduitService>();
+builder.Services.AddScoped<IFactureService, FactureService>();
 // M3 — Analytique
 builder.Services.AddScoped<IAnalytiqueService, AnalytiqueService>();
 
