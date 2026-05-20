@@ -127,6 +127,12 @@ else
 
     @* Nombre de clients actuellement affichés *@
     <p class="text-muted small">@_clients.Count client(s) affiché(s)</p>
+
+    @* Pagination (composant M3) *@
+    <Pagination PageCourante="_pageCourante"
+                PageSize="_pageSize"
+                TotalElements="_totalClients"
+                OnPageChanged="ChangerPage" />
 }
 
 @* ============================
@@ -184,6 +190,11 @@ else
     // null = aucun client sélectionné, donc pas de modal affiché
     private int? _idASupprimer = null;
 
+    // ── Pagination (M3) ──────────────────────────────────────────────────
+    private List<Client> _tousLesClients = new();
+    private int _pageCourante = 1;
+    private int _pageSize = 10;
+    private int _totalClients => _tousLesClients.Count;
 
     // =========================================================
     // INITIALISATION DE LA PAGE
@@ -204,21 +215,39 @@ else
     private async Task ChargerClients()
     {
         _isLoading = true;
-
-        _clients = await ClientService.GetAllAsync();
-
+        _tousLesClients = await ClientService.GetAllAsync();
+        AppliquerPagination();
         _isLoading = false;
+    }
+
+    // Applique la pagination sur la liste courante
+    private void AppliquerPagination()
+    {
+        _clients = _tousLesClients
+            .Skip((_pageCourante - 1) * _pageSize)
+            .Take(_pageSize)
+            .ToList();
+    }
+
+    // Changement de page (Pagination.razor)
+    private void ChangerPage(int page)
+    {
+        _pageCourante = page;
+        AppliquerPagination();
     }
 
     // Filtre les clients en temps réel selon le texte saisi
     private async Task FiltrerClients(ChangeEventArgs e)
     {
-    termRecherche = e.Value?.ToString() ?? string.Empty;
+        termRecherche = e.Value?.ToString() ?? string.Empty;
+        _pageCourante = 1; // retour page 1 à chaque nouvelle recherche
 
-    if (string.IsNullOrWhiteSpace(termRecherche))
-        await ChargerClients();
-    else
-        _clients = await ClientService.SearchAsync(termRecherche);
+        if (string.IsNullOrWhiteSpace(termRecherche))
+            _tousLesClients = await ClientService.GetAllAsync();
+        else
+            _tousLesClients = await ClientService.SearchAsync(termRecherche);
+
+        AppliquerPagination();
     }
 
 
