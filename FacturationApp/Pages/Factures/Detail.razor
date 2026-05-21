@@ -1,0 +1,332 @@
+﻿@* FacturationApp/Pages/Factures/Detail.razor *@
+
+@page "/factures/{Id:int}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@inject IFactureService FactureService
+@inject IPdfService PdfService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Facture @facture?.Numero</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/factures" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="mb-0">
+        <i class="bi bi-receipt me-2"></i>
+        @if (facture is null)
+        {
+            <text>Chargement...</text>
+        }
+        else if (string.IsNullOrEmpty(facture.Numero))
+        {
+
+            <text>Brouillon</text>
+        }
+        else
+        {
+
+            @facture.Numero
+        }
+    </h2>
+    @if (facture?.Statut == "Validée")
+    {
+        <span class="badge bg-success ms-3 fs-6">Validée</span>
+    }
+    else if (facture?.Statut == "Brouillon")
+    {
+        <span class="badge bg-secondary ms-3 fs-6">Brouillon</span>
+    }
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement de la facture...</p>
+    </div>
+}
+else if (facture is null)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>Facture introuvable.
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-md-8">
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-info-circle me-2"></i>Informations
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1">
+                                <span class="text-muted">Numéro :</span>
+                                <strong>@(string.IsNullOrEmpty(facture.Numero) ? "— généré à la validation —" : facture.Numero)</strong>
+                            </p>
+                            <p class="mb-1">
+                                <span class="text-muted">Date création :</span>
+                                <strong>@facture.DateCreation.ToString("dd/MM/yyyy HH:mm")</strong>
+                            </p>
+                            @if (facture.DateValidation.HasValue)
+                            {
+                                <p class="mb-1">
+                                    <span class="text-muted">Date validation :</span>
+                                    <strong>@facture.DateValidation.Value.ToString("dd/MM/yyyy HH:mm")</strong>
+                                </p>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1">
+                                <span class="text-muted">Client :</span>
+                                <strong>@facture.Client?.Nom</strong>
+                            </p>
+                            @if (!string.IsNullOrEmpty(facture.Client?.MatriculeFiscal))
+                            {
+                                <p class="mb-1">
+                                    <span class="text-muted">Matricule fiscal :</span>
+                                    <strong>@facture.Client.MatriculeFiscal</strong>
+                                </p>
+                            }
+                            @if (!string.IsNullOrEmpty(facture.Client?.Email))
+                            {
+                                <p class="mb-1">
+                                    <span class="text-muted">Email :</span>
+                                    <strong>@facture.Client.Email</strong>
+                                </p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-list-ul me-2"></i>Lignes de facture
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Désignation</th>
+                                    <th class="text-center">Qté</th>
+                                    <th class="text-end">PU HT</th>
+                                    <th class="text-center">TVA %</th>
+                                    <th class="text-end">Montant HT</th>
+                                    <th class="text-end">Montant TVA</th>
+                                    <th class="text-end">Montant TTC</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ligne in facture.Lignes)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@ligne.Designation</td>
+                                        <td class="text-center">@ligne.Quantite</td>
+                                        <td class="text-end">@ligne.PrixUnitaireHT.ToString("F3")</td>
+                                        <td class="text-center">
+                                            <span class="badge @GetBadgeTVA(ligne.TauxTVA)">@ligne.TauxTVA %</span>
+                                        </td>
+                                        <td class="text-end">@ligne.MontantHT.ToString("F3")</td>
+                                        <td class="text-end">@ligne.MontantTVA.ToString("F3")</td>
+                                        <td class="text-end fw-semibold">@ligne.MontantTTC.ToString("F3")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 flex-wrap">
+                @if (facture.Statut == "Brouillon")
+                {
+                    <button class="btn btn-success" @onclick="ValiderFacture" disabled="@isValidating">
+                        @if (isValidating)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        
+                            <text>Validation...</text>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle me-1"></i>
+                            
+                            <text>Valider la facture</text>
+                        }
+                    </button>
+                }
+
+                @if (facture.Statut == "Validée")
+                {
+                    <button class="btn btn-danger" @onclick="TelechargerPdf" disabled="@isGeneratingPdf">
+                        @if (isGeneratingPdf)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        
+                            <text>Génération PDF...</text>
+                        }
+                        else
+                        {
+                            <i class="bi bi-file-pdf me-1"></i>
+                            
+                            <text>Télécharger PDF</text>
+                        }
+                    </button>
+                }
+
+                <a href="/factures" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Retour
+                </a>
+            </div>
+
+            @if (!string.IsNullOrEmpty(messageErreur))
+            {
+                <div class="alert alert-danger mt-3">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@messageErreur
+                </div>
+            }
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm sticky-top" style="top: 1rem;">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-calculator me-2"></i>Récapitulatif
+                </div>
+                <div class="card-body">
+                    @foreach (var groupe in GetGroupesTVA())
+                    {
+                        <div class="d-flex justify-content-between text-muted small mb-1">
+                            <span>TVA @groupe.Taux % :</span>
+                            <span>@groupe.MontantTVA.ToString("F3") DT</span>
+                        </div>
+                    }
+                    <hr class="my-2" />
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total HT :</span>
+                        <strong>@facture.TotalHT.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total TVA :</span>
+                        <strong>@facture.TotalTVA.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total TTC :</span>
+                        <strong>@facture.TotalTTC.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Timbre fiscal :</span>
+                        <strong>@facture.Timbre.ToString("F3") DT</strong>
+                    </div>
+                    <hr class="my-2" />
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold fs-6">Net à payer :</span>
+                        @if (facture.Statut == "Brouillon")
+                        {
+                            <span class="text-muted fst-italic small">calculé à la validation</span>
+                        }
+                        else
+                        {
+                            <strong class="text-primary fs-5">@facture.NetAPayer.ToString("F3") DT</strong>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(messageSucces))
+{
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div class="toast show align-items-center text-bg-success border-0">
+            <div class="d-flex">
+                <div class="toast-body"><i class="bi bi-check-circle me-2"></i>@messageSucces</div>
+                <button class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => messageSucces = string.Empty"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Facture? facture = null;
+    private bool isLoading = true;
+    private bool isValidating = false;
+    private bool isGeneratingPdf = false;
+    private string messageSucces = string.Empty;
+    private string messageErreur = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+        => await ChargerFacture();
+
+    private async Task ChargerFacture()
+    {
+        isLoading = true;
+        facture = await FactureService.GetByIdAsync(Id);
+        isLoading = false;
+    }
+
+    private async Task ValiderFacture()
+    {
+        messageErreur = string.Empty;
+        isValidating = true;
+        try
+        {
+            await FactureService.ValiderFactureAsync(Id);
+            await ChargerFacture();
+            messageSucces = $"Facture {facture?.Numero} validée avec succès.";
+            await Task.Delay(4000);
+            messageSucces = string.Empty;
+            StateHasChanged();
+        }
+        catch (Exception ex) { messageErreur = ex.Message; }
+        finally { isValidating = false; }
+    }
+
+    private async Task TelechargerPdf()
+    {
+        messageErreur = string.Empty;
+        isGeneratingPdf = true;
+        try
+        {
+            var pdfBytes = await PdfService.GenererPdfAsync(Id);
+            var nomFichier = $"Facture_{facture?.Numero?.Replace("-", "_")}.pdf";
+
+            // Déclenche le téléchargement via JS (défini dans app.js ou index.html)
+            // Envoyer la représentation base64 pour garantir la compatibilité côté client
+            await JS.InvokeVoidAsync("telechargerFichier", nomFichier, "application/pdf", System.Convert.ToBase64String(pdfBytes));
+        }
+        catch (Exception ex) { messageErreur = $"Erreur PDF : {ex.Message}"; }
+        finally { isGeneratingPdf = false; }
+    }
+
+    private List<(decimal Taux, decimal MontantTVA)> GetGroupesTVA()
+    {
+        if (facture is null) return new();
+        return facture.Lignes
+            .Where(l => l.TauxTVA > 0)
+            .GroupBy(l => l.TauxTVA)
+            .Select(g => (Taux: g.Key, MontantTVA: g.Sum(l => l.MontantTVA)))
+            .OrderBy(g => g.Taux)
+            .ToList();
+    }
+
+    private static string GetBadgeTVA(decimal taux) => taux switch
+    {
+        0 => "bg-secondary",
+        7 => "bg-info text-dark",
+        13 => "bg-warning text-dark",
+        19 => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

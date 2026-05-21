@@ -1,0 +1,427 @@
+﻿@* FacturationApp/Pages/Produits/Index.razor *@
+
+@page "/produits"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@inject IProduitService ProduitService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Produits</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="bi bi-box-seam me-2"></i>Produits</h2>
+    <a href="/produits/nouveau" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nouveau produit
+    </a>
+</div>
+
+<!-- ══ FILTRES + IMPORT CSV ══════════════════════════════════════════════════ -->
+<div class="row mb-3 g-2 align-items-center">
+    <div class="col-md-5">
+        <SearchBar Placeholder="Rechercher par désignation..."
+                   OnSearchChanged="OnRecherche" />
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" @onchange="OnFiltreCategorie">
+            <option value="0">— Toutes les catégories —</option>
+            @foreach (var cat in categories)
+            {
+                <option value="@cat.Id">@cat.Nom</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-4">
+        <div class="input-group">
+            <label class="input-group-text bg-white" for="csvFile">
+                <i class="bi bi-upload me-1"></i>Import CSV
+            </label>
+            <!-- Input natif HTML — lu via JS pour éviter les bugs Blazor InputFile -->
+            <input type="file" id="csvFile" class="form-control"
+                   accept=".csv" @onchange="OnCsvFileSelected" />
+        </div>
+    </div>
+</div>
+
+<!-- ══ MESSAGES IMPORT ═══════════════════════════════════════════════════════ -->
+@if (isImporting)
+{
+    <div class="alert alert-info d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        <span>Import en cours...</span>
+    </div>
+}
+
+@if (importedCount > 0)
+{
+    <div class="alert alert-success alert-dismissible">
+        <i class="bi bi-check-circle me-2"></i>
+        <strong>@importedCount produit(s)</strong> importé(s) avec succès.
+        <button type="button" class="btn-close" @onclick="() => importedCount = 0"></button>
+    </div>
+}
+
+@if (importErrors.Any())
+{
+    <div class="alert alert-warning alert-dismissible">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <strong>@importErrors.Count erreur(s) d'import :</strong>
+        <ul class="mt-2 mb-0 small">
+            @foreach (var err in importErrors)
+            {
+                <li>@err</li>
+            }
+        </ul>
+        <button type="button" class="btn-close" @onclick="() => importErrors.Clear()"></button>
+    </div>
+}
+
+<!-- ══ CHARGEMENT ════════════════════════════════════════════════════════════ -->
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement des produits...</p>
+    </div>
+}
+else if (!produitsFiltres.Any())
+{
+    <div class="alert alert-info d-flex align-items-center">
+        <i class="bi bi-info-circle me-2 fs-5"></i>
+        <span>
+            @if (string.IsNullOrWhiteSpace(termRecherche) && categorieSelectionneeId == 0)
+            {
+                <text>Aucun produit enregistré. Créez un produit ou importez un CSV.</text>
+            }
+            else
+            {
+                <text>Aucun produit ne correspond à votre recherche.</text>
+            }
+        </span>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Désignation</th>
+                    <th>Catégorie</th>
+                    <th class="text-center">Stock</th>
+                    <th class="text-end">Prix HT (DT)</th>
+                    <th class="text-center">TVA %</th>
+                    <th class="text-end">Prix TTC (DT)</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var produit in produitsFiltres)
+                {
+                    <tr>
+                        <td class="fw-semibold">@produit.Designation</td>
+                        <td><span class="badge bg-secondary">@produit.Categorie?.Nom</span></td>
+                        <td class="text-center">
+                            @produit.StockQuantity
+                            @if (produit.StockQuantity <= produit.StockAlertThreshold)
+                            {
+                                <span class="badge bg-danger ms-2">Stock bas</span>
+                            }
+                        </td>
+                        <td class="text-end">@produit.PrixUnitaireHT.ToString("F3")</td>
+                        <td class="text-center">
+                            <span class="badge @GetBadgeTVA(produit.TauxTVA)">@produit.TauxTVA %</span>
+                        </td>
+                        <td class="text-end">
+                            @((produit.PrixUnitaireHT * (1 + produit.TauxTVA / 100)).ToString("F3"))
+                        </td>
+                        <td class="text-center">
+                            <a href="/produits/modifier/@produit.Id"
+                                   class="btn btn-sm btn-outline-primary me-1" title="Modifier">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger" title="Supprimer"
+                                    @onclick="() => DemanderSuppression(produit)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>@produitsFiltres.Count produit(s) affiché(s)
+    </p>
+}
+
+<!-- ══ MODAL SUPPRESSION ═════════════════════════════════════════════════════ -->
+@if (produitASupprimer is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Confirmer la suppression
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    Voulez-vous supprimer <strong>@produitASupprimer.Designation</strong> ?
+                    <br /><small class="text-muted">Les factures existantes ne seront pas affectées.</small>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-secondary" @onclick="AnnulerSuppression">Annuler</button>
+                    <button class="btn btn-danger" @onclick="ConfirmerSuppression">
+                        <i class="bi bi-trash me-1"></i>Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ══ TOAST SUCCÈS ══════════════════════════════════════════════════════════ -->
+@if (!string.IsNullOrEmpty(messageSucces))
+{
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div class="toast show align-items-center text-bg-success border-0">
+            <div class="d-flex">
+                <div class="toast-body"><i class="bi bi-check-circle me-2"></i>@messageSucces</div>
+                <button class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => messageSucces = string.Empty"></button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="mt-3">
+    <small class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        Format CSV : <code>Designation;PrixUnitaireHT;TauxTVA;CategorieId;StockQuantity;StockAlertThreshold</code>
+        — TVA : 0, 7, 13 ou 19 — CategorieId : 1=Informatique, 2=Bureautique, 3=Services, 4=Autres
+    </small>
+</div>
+
+@code {
+    // ── État ──────────────────────────────────────────────────────────────────
+    private List<Produit> tousLesProduits = new();
+    private List<Produit> produitsFiltres = new();
+    private List<Categorie> categories = new();
+    private string termRecherche = string.Empty;
+    private int categorieSelectionneeId = 0;
+    private bool isLoading = true;
+    private string messageSucces = string.Empty;
+    private Produit? produitASupprimer = null;
+    private bool isImporting = false;
+    private int importedCount = 0;
+    private List<string> importErrors = new();
+
+    // ── Initialisation ────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ProduitService.GetAllCategoriesAsync();
+        await ChargerProduits();
+    }
+
+    private async Task ChargerProduits()
+    {
+        isLoading = true;
+        tousLesProduits = await ProduitService.GetAllAsync();
+        AppliquerFiltres();
+        isLoading = false;
+    }
+
+    // ── Filtrage ──────────────────────────────────────────────────────────────
+    private void OnRecherche(string terme)
+    {
+        termRecherche = terme;
+        AppliquerFiltres();
+    }
+
+    private void OnFiltreCategorie(ChangeEventArgs e)
+    {
+        categorieSelectionneeId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        AppliquerFiltres();
+    }
+
+    private void AppliquerFiltres()
+    {
+        var r = tousLesProduits.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(termRecherche))
+            r = r.Where(p => p.Designation.ToLower().Contains(termRecherche.Trim().ToLower()));
+        if (categorieSelectionneeId > 0)
+            r = r.Where(p => p.CategorieId == categorieSelectionneeId);
+        produitsFiltres = r.ToList();
+    }
+
+    // ── Import CSV via JS ─────────────────────────────────────────────────────
+    // Utilise readFileAsText depuis app.js — évite les bugs de InputFile Blazor Server
+    private async Task OnCsvFileSelected(ChangeEventArgs e)
+    {
+        isImporting = true;
+        importedCount = 0;
+        importErrors.Clear();
+        StateHasChanged();
+
+        try
+        {
+            // Lire le contenu du fichier via JavaScript (défini dans app.js)
+            var contenu = await JS.InvokeAsync<string>("readFileAsText", "csvFile");
+
+            if (string.IsNullOrWhiteSpace(contenu))
+            {
+                importErrors.Add("Fichier vide ou illisible.");
+                return;
+            }
+
+            await TraiterCsv(contenu);
+            await ChargerProduits();
+        }
+        catch (Exception ex)
+        {
+            importErrors.Add($"Erreur lecture fichier : {ex.Message}");
+        }
+        finally
+        {
+            isImporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task TraiterCsv(string contenu)
+    {
+        var lignes = contenu
+            .Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        if (lignes.Count <= 1)
+        {
+            importErrors.Add("Fichier vide — header + au moins une ligne attendus.");
+            return;
+        }
+
+        // Détection du séparateur
+        var header = lignes[0].TrimStart('\uFEFF').Trim();
+        var separator = header.Contains(';') ? ';' : ',';
+
+        for (int i = 1; i < lignes.Count; i++)
+        {
+            var cols = SplitCsvRow(lignes[i], separator);
+
+            if (cols.Count < 6)
+            {
+                importErrors.Add($"Ligne {i + 1} ignorée : {cols.Count} colonne(s) trouvée(s), 6 attendues.");
+                continue;
+            }
+
+            var designation = cols[0].Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(designation))
+            {
+                importErrors.Add($"Ligne {i + 1} ignorée : désignation vide.");
+                continue;
+            }
+
+            if (!decimal.TryParse(cols[1].Trim().Replace(',', '.'),
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var prix))
+            {
+                importErrors.Add($"Ligne {i + 1} ({designation}) : prix invalide → '{cols[1]}'.");
+                continue;
+            }
+
+            if (!decimal.TryParse(cols[2].Trim().Replace(',', '.'),
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var tva))
+            {
+                importErrors.Add($"Ligne {i + 1} ({designation}) : TVA invalide → '{cols[2]}'.");
+                continue;
+            }
+
+            // Catégorie par Id ou par Nom
+            int catId;
+            if (!int.TryParse(cols[3].Trim(), out catId))
+            {
+                var catName = cols[3].Trim().Trim('"');
+                var cat = categories.FirstOrDefault(c =>
+                    string.Equals(c.Nom, catName, StringComparison.OrdinalIgnoreCase));
+                if (cat is null)
+                {
+                    importErrors.Add($"Ligne {i + 1} ({designation}) : catégorie '{catName}' introuvable.");
+                    continue;
+                }
+                catId = cat.Id;
+            }
+
+            if (!categories.Any(c => c.Id == catId))
+            {
+                importErrors.Add($"Ligne {i + 1} ({designation}) : catégorie Id={catId} introuvable (valides : 1-4).");
+                continue;
+            }
+
+            if (!int.TryParse(cols[4].Trim(), out var stock)) stock = 0;
+            if (!int.TryParse(cols[5].Trim(), out var seuil)) seuil = 0;
+
+            try
+            {
+                await ProduitService.CreateAsync(new Produit
+                {
+                    Designation = designation,
+                    PrixUnitaireHT = prix,
+                    TauxTVA = tva,
+                    CategorieId = catId,
+                    StockQuantity = stock,
+                    StockAlertThreshold = seuil
+                });
+                importedCount++;
+            }
+            catch (Exception ex)
+            {
+                importErrors.Add($"Ligne {i + 1} ({designation}) : {ex.Message}");
+            }
+        }
+    }
+
+    // ── Suppression ───────────────────────────────────────────────────────────
+    private void DemanderSuppression(Produit produit) => produitASupprimer = produit;
+    private void AnnulerSuppression() => produitASupprimer = null;
+
+    private async Task ConfirmerSuppression()
+    {
+        if (produitASupprimer is null) return;
+        await ProduitService.DeleteAsync(produitASupprimer.Id);
+        messageSucces = $"Produit « {produitASupprimer.Designation} » supprimé.";
+        produitASupprimer = null;
+        await ChargerProduits();
+        await Task.Delay(3000);
+        messageSucces = string.Empty;
+        StateHasChanged();
+    }
+
+    // ── Helper CSV ────────────────────────────────────────────────────────────
+    private static List<string> SplitCsvRow(string row, char separator)
+    {
+        var result = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+
+        foreach (var ch in row)
+        {
+            if (ch == '"') { inQuotes = !inQuotes; continue; }
+            if (ch == separator && !inQuotes) { result.Add(current.ToString()); current.Clear(); continue; }
+            current.Append(ch);
+        }
+        result.Add(current.ToString());
+        return result;
+    }
+
+    // ── Helpers UI ────────────────────────────────────────────────────────────
+    private static string GetBadgeTVA(decimal taux) => taux switch
+    {
+        0 => "bg-secondary",
+        7 => "bg-info text-dark",
+        13 => "bg-warning text-dark",
+        19 => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

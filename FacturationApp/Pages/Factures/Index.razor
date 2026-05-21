@@ -1,0 +1,290 @@
+﻿@* FacturationApp/Pages/Factures/Index.razor *@
+
+@page "/factures"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@inject IFactureService FactureService
+@inject NavigationManager Navigation
+
+@implements IDisposable
+
+<PageTitle>Factures</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="bi bi-receipt me-2"></i>Factures</h2>
+    <a href="/factures/nouvelle" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nouvelle facture
+    </a>
+</div>
+
+<div class="row mb-3 g-2">
+    <div class="col-md-3">
+        <select class="form-select" @onchange="OnFiltreStatut">
+            <option value="">— Tous les statuts —</option>
+            <option value="Brouillon">Brouillon</option>
+            <option value="Validée">Validée</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <input type="date" class="form-control"
+               value="@dateDebut?.ToString("yyyy-MM-dd")"
+               @onchange="OnFiltreDateDebut" />
+    </div>
+    <div class="col-md-3">
+        <input type="date" class="form-control"
+               value="@dateFin?.ToString("yyyy-MM-dd")"
+               @onchange="OnFiltreDateFin" />
+    </div>
+    <div class="col-md-3">
+        <button class="btn btn-outline-secondary w-100" @onclick="EffacerFiltres">
+            <i class="bi bi-x-circle me-1"></i>Effacer
+        </button>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement des factures...</p>
+    </div>
+}
+else if (!facturesFiltrees.Any())
+{
+    <div class="alert alert-info d-flex align-items-center">
+        <i class="bi bi-info-circle me-2 fs-5"></i>
+        <span>
+            @if (!toutesLesFactures.Any())
+            {
+                <text>Aucune facture enregistrée. Créez votre première facture.</text>
+            }
+            else
+            {
+                <text>Aucune facture ne correspond aux filtres sélectionnés.</text>
+            }
+        </span>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Numéro</th>
+                    <th>Date</th>
+                    <th>Client</th>
+                    <th class="text-end">Total HT (DT)</th>
+                    <th class="text-end">Total TTC (DT)</th>
+                    <th class="text-center">Statut</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var facture in facturesFiltrees)
+                {
+                    <tr>
+                        <td class="fw-semibold">
+                            @if (string.IsNullOrEmpty(facture.Numero))
+                            {
+                                <span class="text-muted fst-italic">— brouillon —</span>
+                            }
+                            else
+                            {
+
+                                @facture.Numero
+                            }
+                        </td>
+                        <td>@facture.DateCreation.ToString("dd/MM/yyyy")</td>
+                        <td>@facture.Client?.Nom</td>
+                        <td class="text-end">@facture.TotalHT.ToString("F3")</td>
+                        <td class="text-end fw-semibold">@facture.TotalTTC.ToString("F3")</td>
+                        <td class="text-center">
+                            <span class="badge @GetBadgeStatut(facture.Statut)">@facture.Statut</span>
+                        </td>
+                        <td class="text-center">
+                            <!-- Détail — toujours disponible -->
+                            <a href="/factures/@facture.Id"
+                                   class="btn btn-sm btn-outline-primary me-1" title="Détail">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <!-- Modifier — uniquement si Brouillon -->
+                            @if (facture.Statut == "Brouillon")
+                            {
+                                <a href="/factures/modifier/@facture.Id"
+                                       class="btn btn-sm btn-outline-warning me-1" title="Modifier">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger" title="Supprimer"
+                                        @onclick="() => DemanderSuppression(facture)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>
+        @facturesFiltrees.Count facture(s) —
+        @toutesLesFactures.Count(f => f.Statut == "Validée") validée(s) /
+        @toutesLesFactures.Count(f => f.Statut == "Brouillon") brouillon(s)
+    </p>
+}
+
+@if (factureASupprimer is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Confirmer la suppression
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    Voulez-vous supprimer la facture de
+                    <strong>@factureASupprimer.Client?.Nom</strong> ?
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-secondary" @onclick="AnnulerSuppression">Annuler</button>
+                    <button class="btn btn-danger" @onclick="ConfirmerSuppression">
+                        <i class="bi bi-trash me-1"></i>Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(messageSucces))
+{
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div class="toast show align-items-center text-bg-success border-0">
+            <div class="d-flex">
+                <div class="toast-body"><i class="bi bi-check-circle me-2"></i>@messageSucces</div>
+                <button class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => messageSucces = string.Empty"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(messageErreur))
+{
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div class="toast show align-items-center text-bg-danger border-0">
+            <div class="d-flex">
+                <div class="toast-body"><i class="bi bi-exclamation-circle me-2"></i>@messageErreur</div>
+                <button class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => messageErreur = string.Empty"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Facture> toutesLesFactures = new();
+    private List<Facture> facturesFiltrees = new();
+    private string filtreStatut = string.Empty;
+    private DateTime? dateDebut = null;
+    private DateTime? dateFin = null;
+    private bool isLoading = true;
+    private string messageSucces = string.Empty;
+    private string messageErreur = string.Empty;
+    private Facture? factureASupprimer = null;
+
+    // ── FIX rechargement — on écoute les changements de navigation ────────────
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        await ChargerFactures();
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await ChargerFactures();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+        => Navigation.LocationChanged -= OnLocationChanged;
+
+    private async Task ChargerFactures()
+    {
+        isLoading = true;
+        toutesLesFactures = await FactureService.GetAllAsync();
+        AppliquerFiltres();
+        isLoading = false;
+    }
+
+    private void OnFiltreStatut(ChangeEventArgs e)
+    {
+        filtreStatut = e.Value?.ToString() ?? string.Empty;
+        AppliquerFiltres();
+    }
+
+    private void OnFiltreDateDebut(ChangeEventArgs e)
+    {
+        dateDebut = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        AppliquerFiltres();
+    }
+
+    private void OnFiltreDateFin(ChangeEventArgs e)
+    {
+        dateFin = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        AppliquerFiltres();
+    }
+
+    private void AppliquerFiltres()
+    {
+        var r = toutesLesFactures.AsEnumerable();
+        if (!string.IsNullOrEmpty(filtreStatut)) r = r.Where(f => f.Statut == filtreStatut);
+        if (dateDebut.HasValue) r = r.Where(f => f.DateCreation.Date >= dateDebut.Value.Date);
+        if (dateFin.HasValue) r = r.Where(f => f.DateCreation.Date <= dateFin.Value.Date);
+        facturesFiltrees = r.ToList();
+    }
+
+    private void EffacerFiltres()
+    {
+        filtreStatut = string.Empty;
+        dateDebut = null;
+        dateFin = null;
+        AppliquerFiltres();
+    }
+
+    private void DemanderSuppression(Facture f) => factureASupprimer = f;
+    private void AnnulerSuppression() => factureASupprimer = null;
+
+    private async Task ConfirmerSuppression()
+    {
+        if (factureASupprimer is null) return;
+        try
+        {
+            await FactureService.DeleteAsync(factureASupprimer.Id);
+            messageSucces = "Facture supprimée avec succès.";
+            factureASupprimer = null;
+            await ChargerFactures();
+            await Task.Delay(3000);
+            messageSucces = string.Empty;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            messageErreur = ex.Message;
+            factureASupprimer = null;
+            await Task.Delay(4000);
+            messageErreur = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private static string GetBadgeStatut(string statut) => statut switch
+    {
+        "Validée" => "bg-success",
+        "Brouillon" => "bg-secondary",
+        _ => "bg-secondary"
+    };
+}

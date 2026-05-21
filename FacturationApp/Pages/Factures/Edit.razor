@@ -1,0 +1,379 @@
+﻿@* FacturationApp/Pages/Factures/Edit.razor *@
+
+@page "/factures/modifier/{Id:int}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@inject IFactureService FactureService
+@inject IProduitService ProduitService
+@inject IClientService ClientService
+@inject NavigationManager Navigation
+
+<PageTitle>Modifier la facture</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/factures" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="mb-0"><i class="bi bi-pencil me-2"></i>Modifier la facture</h2>
+    <span class="badge bg-secondary ms-3">Brouillon</span>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement...</p>
+    </div>
+}
+else if (erreurChargement)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>@messageErreur
+    </div>
+}
+else
+{
+    <div class="row g-4">
+
+        <!-- ══ COLONNE GAUCHE ════════════════════════════════════════════════ -->
+        <div class="col-md-8">
+
+            <!-- Client -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-person me-2"></i>Client
+                </div>
+                <div class="card-body">
+                    <select class="form-select" @onchange="OnClientChange">
+                        <option value="0">— Sélectionner un client —</option>
+                        @foreach (var client in clients)
+                        {
+                            <option value="@client.Id"
+                                    selected="@(client.Id == clientSelectionneId)">
+                                @client.Nom
+                                @if (!string.IsNullOrEmpty(client.MatriculeFiscal))
+                                {
+                                    <text> — @client.MatriculeFiscal</text>
+                                }
+                            </option>
+                        }
+                    </select>
+                    @if (clientSelectionneId == 0 && aEssayeEnregistrer)
+                    {
+                        <div class="text-danger small mt-1">
+                            <i class="bi bi-exclamation-circle me-1"></i>Veuillez sélectionner un client.
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Lignes -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="bi bi-list-ul me-2"></i>Lignes de facture</span>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="AjouterLigne">
+                        <i class="bi bi-plus-lg me-1"></i>Ajouter une ligne
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    @if (!lignes.Any())
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                            Aucune ligne. Cliquez sur "Ajouter une ligne".
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:35%">Produit</th>
+                                        <th style="width:10%" class="text-center">Qté</th>
+                                        <th style="width:15%" class="text-end">PU HT</th>
+                                        <th style="width:10%" class="text-center">TVA</th>
+                                        <th style="width:15%" class="text-end">Montant HT</th>
+                                        <th style="width:10%" class="text-end">TTC</th>
+                                        <th style="width:5%"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var ligne in lignes)
+                                    {
+                                        <tr @key="ligne">
+                                            <td>
+                                                <select class="form-select form-select-sm"
+                                                        value="@ligne.ProduitId"
+                                                        @onchange="e => OnProduitChange(ligne, e)">
+                                                    <option value="0">— Produit —</option>
+                                                    @foreach (var p in produits)
+                                                    {
+                                                        <option value="@p.Id"
+                                                                selected="@(p.Id == ligne.ProduitId)">
+                                                            @p.Designation
+                                                        </option>
+                                                    }
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-center"
+                                                       min="1" value="@ligne.Quantite"
+                                                       @onchange="e => OnQuantiteChange(ligne, e)" />
+                                            </td>
+                                            <td class="text-end text-muted small">
+                                                @ligne.PrixUnitaireHT.ToString("F3")
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge @GetBadgeTVA(ligne.TauxTVA)">
+                                                    @ligne.TauxTVA %
+                                                </span>
+                                            </td>
+                                            <td class="text-end">@ligne.MontantHT.ToString("F3")</td>
+                                            <td class="text-end fw-semibold">@ligne.MontantTTC.ToString("F3")</td>
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                        @onclick="() => SupprimerLigne(ligne)">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(messageErreur) && !erreurChargement)
+            {
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@messageErreur
+                </div>
+            }
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" @onclick="Enregistrer" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <text>Enregistrement...</text>
+                    }
+                    else
+                    {
+                        <i class="bi bi-floppy me-1"></i>
+                        <text>Enregistrer les modifications</text>
+                    }
+                </button>
+                <a href="/factures" class="btn btn-outline-secondary">Annuler</a>
+            </div>
+        </div>
+
+        <!-- ══ COLONNE DROITE — Récapitulatif ════════════════════════════════ -->
+        <div class="col-md-4">
+            <div class="card shadow-sm sticky-top" style="top: 1rem;">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-calculator me-2"></i>Récapitulatif
+                </div>
+                <div class="card-body">
+                    @foreach (var g in GetGroupesTVA())
+                    {
+                        <div class="d-flex justify-content-between text-muted small mb-1">
+                            <span>TVA @g.Taux % :</span>
+                            <span>@g.MontantTVA.ToString("F3") DT</span>
+                        </div>
+                    }
+                    <hr class="my-2" />
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total HT :</span>
+                        <strong>@totalHT.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total TVA :</span>
+                        <strong>@totalTVA.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Total TTC :</span>
+                        <strong>@totalTTC.ToString("F3") DT</strong>
+                    </div>
+                    <hr class="my-2" />
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold">Net à payer :</span>
+                        <strong class="text-primary fs-5">@totalTTC.ToString("F3") DT</strong>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Timbre et numéro générés à la validation.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private List<Client> clients = new();
+    private List<Produit> produits = new();
+    private int clientSelectionneId = 0;
+    private List<LigneFacture> lignes = new();
+    private decimal totalHT = 0;
+    private decimal totalTVA = 0;
+    private decimal totalTTC = 0;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool aEssayeEnregistrer = false;
+    private bool erreurChargement = false;
+    private string messageErreur = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        clients = await ClientService.GetAllAsync();
+        produits = await ProduitService.GetAllAsync();
+
+        // Charger la facture existante
+        var facture = await FactureService.GetByIdAsync(Id);
+
+        if (facture is null)
+        {
+            erreurChargement = true;
+            messageErreur = $"Facture Id={Id} introuvable.";
+            isLoading = false;
+            return;
+        }
+
+        if (facture.Statut != "Brouillon")
+        {
+            erreurChargement = true;
+            messageErreur = "Seules les factures en brouillon peuvent être modifiées.";
+            isLoading = false;
+            return;
+        }
+
+        // Pré-remplir le formulaire avec les données existantes
+        clientSelectionneId = facture.ClientId;
+
+        // Copier les lignes existantes
+        lignes = facture.Lignes.Select(l => new LigneFacture
+        {
+            Id = l.Id,
+            ProduitId = l.ProduitId,
+            Designation = l.Designation,
+            PrixUnitaireHT = l.PrixUnitaireHT,
+            TauxTVA = l.TauxTVA,
+            Quantite = l.Quantite,
+            MontantHT = l.MontantHT,
+            MontantTVA = l.MontantTVA,
+            MontantTTC = l.MontantTTC,
+            FactureId = l.FactureId
+        }).ToList();
+
+        Recalculer();
+        isLoading = false;
+    }
+
+    private void OnClientChange(ChangeEventArgs e)
+        => clientSelectionneId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+    private void AjouterLigne()
+    {
+        lignes.Add(new LigneFacture { Quantite = 1, FactureId = Id });
+        StateHasChanged();
+    }
+
+    private void SupprimerLigne(LigneFacture ligne)
+    {
+        lignes.Remove(ligne);
+        Recalculer();
+    }
+
+    private void OnProduitChange(LigneFacture ligne, ChangeEventArgs e)
+    {
+        var pid = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        var produit = produits.FirstOrDefault(p => p.Id == pid);
+
+        if (produit is not null)
+        {
+            ligne.ProduitId = produit.Id;
+            ligne.Designation = produit.Designation;
+            ligne.PrixUnitaireHT = produit.PrixUnitaireHT;
+            ligne.TauxTVA = produit.TauxTVA;
+        }
+        else
+        {
+            ligne.ProduitId = 0;
+            ligne.Designation = string.Empty;
+            ligne.PrixUnitaireHT = 0;
+            ligne.TauxTVA = 0;
+        }
+
+        Recalculer();
+    }
+
+    private void OnQuantiteChange(LigneFacture ligne, ChangeEventArgs e)
+    {
+        ligne.Quantite = int.TryParse(e.Value?.ToString(), out var q) && q > 0 ? q : 1;
+        Recalculer();
+    }
+
+    private void Recalculer()
+    {
+        foreach (var l in lignes)
+        {
+            l.MontantHT = l.Quantite * l.PrixUnitaireHT;
+            l.MontantTVA = l.MontantHT * l.TauxTVA / 100;
+            l.MontantTTC = l.MontantHT + l.MontantTVA;
+        }
+        totalHT = lignes.Sum(l => l.MontantHT);
+        totalTVA = lignes.Sum(l => l.MontantTVA);
+        totalTTC = lignes.Sum(l => l.MontantTTC);
+    }
+
+    private List<(decimal Taux, decimal MontantTVA)> GetGroupesTVA()
+        => lignes
+            .Where(l => l.ProduitId > 0 && l.TauxTVA > 0)
+            .GroupBy(l => l.TauxTVA)
+            .Select(g => (Taux: g.Key, MontantTVA: g.Sum(l => l.MontantTVA)))
+            .OrderBy(g => g.Taux)
+            .ToList();
+
+    private async Task Enregistrer()
+    {
+        aEssayeEnregistrer = true;
+        messageErreur = string.Empty;
+
+        if (clientSelectionneId == 0)
+        { messageErreur = "Veuillez sélectionner un client."; return; }
+        if (!lignes.Any())
+        { messageErreur = "Ajoutez au moins une ligne."; return; }
+        if (lignes.Any(l => l.ProduitId == 0 || l.Quantite <= 0))
+        { messageErreur = "Certaines lignes sont incomplètes."; return; }
+
+        isSaving = true;
+        try
+        {
+            await FactureService.UpdateAsync(Id, clientSelectionneId, lignes);
+            Navigation.NavigateTo("/factures");
+        }
+        catch (Exception ex)
+        {
+            messageErreur = $"Erreur : {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string GetBadgeTVA(decimal taux) => taux switch
+    {
+        0 => "bg-secondary",
+        7 => "bg-info text-dark",
+        13 => "bg-warning text-dark",
+        19 => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

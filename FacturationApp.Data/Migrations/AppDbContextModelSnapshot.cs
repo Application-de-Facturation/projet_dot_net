@@ -17,6 +17,44 @@ namespace FacturationApp.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.6");
 
+            modelBuilder.Entity("FacturationApp.Data.Entities.Categorie", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Categorie", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Nom = "Informatique"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Nom = "Bureautique"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Nom = "Services"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Nom = "Autres"
+                        });
+                });
+
             modelBuilder.Entity("FacturationApp.Data.Entities.Client", b =>
                 {
                     b.Property<int>("Id")
@@ -25,16 +63,14 @@ namespace FacturationApp.Data.Migrations
 
                     b.Property<string>("Adresse")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -43,16 +79,16 @@ namespace FacturationApp.Data.Migrations
 
                     b.Property<string>("MatriculeFiscal")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Nom")
                         .IsRequired()
                         .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Telephone")
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -61,6 +97,293 @@ namespace FacturationApp.Data.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Client", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Facture", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("DateCreation")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateValidation")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("NetAPayer")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("Numero")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Brouillon");
+
+                    b.Property<decimal>("Timbre")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalHT")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalTTC")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalTVA")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("DateCreation")
+                        .HasDatabaseName("IX_Facture_DateCreation");
+
+                    b.HasIndex("Statut")
+                        .HasDatabaseName("IX_Facture_Statut");
+
+                    b.ToTable("Facture", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.LigneFacture", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FactureId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("MontantHT")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("MontantTTC")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("MontantTVA")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("PrixUnitaireHT")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("ProduitId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TauxTVA")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FactureId");
+
+                    b.HasIndex("ProduitId");
+
+                    b.ToTable("LigneFacture", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Parametre", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Cle")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Valeur")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Cle")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Parametre_Cle");
+
+                    b.ToTable("Parametre", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Cle = "TimbreFiscal",
+                            Valeur = "1.000"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Cle = "FacturePrefixe",
+                            Valeur = "FAC"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Cle = "FactureCompteur",
+                            Valeur = "0"
+                        });
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Produit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CategorieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<decimal>("PrixUnitaireHT")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("StockAlertThreshold")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("StockQuantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TauxTVA")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategorieId");
+
+                    b.HasIndex("Designation")
+                        .HasDatabaseName("IX_Produit_Designation")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("Produit", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.StockMouvement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Commentaire")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProduitId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProduitId");
+
+                    b.ToTable("StockMouvement", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Facture", b =>
+                {
+                    b.HasOne("FacturationApp.Data.Entities.Client", "Client")
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Client");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.LigneFacture", b =>
+                {
+                    b.HasOne("FacturationApp.Data.Entities.Facture", "Facture")
+                        .WithMany("Lignes")
+                        .HasForeignKey("FactureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FacturationApp.Data.Entities.Produit", "Produit")
+                        .WithMany("LignesFacture")
+                        .HasForeignKey("ProduitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Facture");
+
+                    b.Navigation("Produit");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Produit", b =>
+                {
+                    b.HasOne("FacturationApp.Data.Entities.Categorie", "Categorie")
+                        .WithMany("Produits")
+                        .HasForeignKey("CategorieId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Categorie");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.StockMouvement", b =>
+                {
+                    b.HasOne("FacturationApp.Data.Entities.Produit", "Produit")
+                        .WithMany()
+                        .HasForeignKey("ProduitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Produit");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Categorie", b =>
+                {
+                    b.Navigation("Produits");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Facture", b =>
+                {
+                    b.Navigation("Lignes");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.Produit", b =>
+                {
+                    b.Navigation("LignesFacture");
                 });
 #pragma warning restore 612, 618
         }
