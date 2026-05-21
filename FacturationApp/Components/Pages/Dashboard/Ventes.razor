@@ -1,5 +1,8 @@
 @page "/dashboard/ventes"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using FacturationApp.Services.DTOs
+@using FacturationApp.Services.Interfaces
+@inject IAnalytiqueService AnalytiqueService
 
 <PageTitle>Dashboard Ventes</PageTitle>
 
@@ -9,282 +12,267 @@
         <i class="bi bi-graph-up-arrow text-success"></i>
         Dashboard Ventes
     </h2>
-    <span class="badge bg-warning text-dark">
-        <i class="bi bi-clock"></i>
-        Données de démonstration
-    </span>
 </div>
 
-@* ── Cards KPI ─────────────────────────────────────────────────── *@
-<div class="row g-3 mb-4">
+@if (_isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-2 text-muted">Chargement des données de ventes...</p>
+    </div>
+}
+else
+{
+    @* ── Cards KPI ─────────────────────────────────────────────────── *@
+    <div class="row g-3 mb-4">
 
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted small mb-1">CA Total HT</p>
-                        <h5 class="fw-bold text-success">@_kpi.CATotalHT.ToString("N3") DT</h5>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">CA Total HT</p>
+                            <h5 class="fw-bold text-success">@_kpi.CATotalHT.ToString("N3") DT</h5>
+                        </div>
+                        <i class="bi bi-cash-stack fs-2 text-success opacity-50"></i>
                     </div>
-                    <i class="bi bi-cash-stack fs-2 text-success opacity-50"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">CA Total TTC</p>
+                            <h5 class="fw-bold text-primary">@_kpi.CATotalTTC.ToString("N3") DT</h5>
+                        </div>
+                        <i class="bi bi-wallet2 fs-2 text-primary opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Factures Validées</p>
+                            <h5 class="fw-bold text-info">@_kpi.NombreFacturesValidees</h5>
+                        </div>
+                        <i class="bi bi-receipt fs-2 text-info opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">TVA Totale</p>
+                            <h5 class="fw-bold text-warning">@_kpi.TVATotale.ToString("N3") DT</h5>
+                        </div>
+                        <i class="bi bi-percent fs-2 text-warning opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    @* ── Filtre période ────────────────────────────────────────────── *@
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small text-muted">Date début</label>
+                    <input type="date" class="form-control" @bind="_dateDebut" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small text-muted">Date fin</label>
+                    <input type="date" class="form-control" @bind="_dateFin" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted">Top N</label>
+                    <select class="form-select" @bind="_topN">
+                        <option value="5">Top 5</option>
+                        <option value="10">Top 10</option>
+                        <option value="20">Top 20</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" @onclick="AppliquerFiltre">
+                        <i class="bi bi-funnel"></i> Appliquer
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted small mb-1">CA Total TTC</p>
-                        <h5 class="fw-bold text-primary">@_kpi.CATotalTTC.ToString("N3") DT</h5>
-                    </div>
-                    <i class="bi bi-wallet2 fs-2 text-primary opacity-50"></i>
+    @* ── CA par mois ───────────────────────────────────────────────── *@
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold">
+            <i class="bi bi-bar-chart text-success"></i>
+            Chiffre d'Affaires par Mois
+        </div>
+        <div class="card-body">
+            @if (!_caParMois.Any())
+            {
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Aucune donnée sur cette période.
                 </div>
-            </div>
+            }
+            else
+            {
+                var maxHT = _caParMois.Max(m => m.MontantHT);
+                @foreach (var mois in _caParMois)
+                {
+                    var pctHT  = maxHT > 0 ? (double)(mois.MontantHT  / maxHT * 100) : 0;
+                    var pctTTC = maxHT > 0 ? (double)(mois.MontantTTC / maxHT * 100) : 0;
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="fw-semibold">@mois.LibelleMois</span>
+                            <span class="text-muted small">
+                                HT : @mois.MontantHT.ToString("N3") DT |
+                                TTC : @mois.MontantTTC.ToString("N3") DT
+                            </span>
+                        </div>
+                        <div class="progress mb-1" style="height:14px;">
+                            <div class="progress-bar bg-success"
+                                 style="width:@pctHT.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%"
+                                 title="HT"></div>
+                        </div>
+                        <div class="progress" style="height:14px;">
+                            <div class="progress-bar bg-primary opacity-75"
+                                 style="width:@pctTTC.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%"
+                                 title="TTC"></div>
+                        </div>
+                    </div>
+                }
+                <div class="d-flex gap-3 mt-2">
+                    <span><span class="badge bg-success">■</span> CA HT</span>
+                    <span><span class="badge bg-primary">■</span> CA TTC</span>
+                </div>
+            }
         </div>
     </div>
 
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted small mb-1">Factures Validées</p>
-                        <h5 class="fw-bold text-info">@_kpi.NombreFacturesValidees</h5>
-                    </div>
-                    <i class="bi bi-receipt fs-2 text-info opacity-50"></i>
+    @* ── Top Clients + Top Produits ────────────────────────────────── *@
+    <div class="row g-3">
+
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-trophy text-warning"></i>
+                    Top @_topN Clients
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <p class="text-muted small mb-1">TVA Totale</p>
-                        <h5 class="fw-bold text-warning">@_kpi.TVATotale.ToString("N3") DT</h5>
-                    </div>
-                    <i class="bi bi-percent fs-2 text-warning opacity-50"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-@* ── Filtre période ────────────────────────────────────────────── *@
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-        <div class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label small text-muted">Date début</label>
-                <input type="date" class="form-control"
-                       @bind="_dateDebut" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small text-muted">Date fin</label>
-                <input type="date" class="form-control"
-                       @bind="_dateFin" />
-            </div>
-            <div class="col-md-4">
-                <button class="btn btn-primary w-100" @onclick="AppliquerFiltre">
-                    <i class="bi bi-funnel"></i>
-                    Appliquer
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@* ── CA par mois ───────────────────────────────────────────────── *@
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white fw-semibold">
-        <i class="bi bi-bar-chart text-success"></i>
-        Chiffre d'Affaires par Mois
-    </div>
-    <div class="card-body">
-        @foreach (var mois in _caParMois)
-        {
-            var maxHT = _caParMois.Max(m => m.MontantHT);
-            var pctHT = maxHT > 0 ? (double)(mois.MontantHT / maxHT * 100) : 0;
-            var pctTTC = maxHT > 0 ? (double)(mois.MontantTTC / maxHT * 100) : 0;
-
-            <div class="mb-3">
-                <div class="d-flex justify-content-between mb-1">
-                    <span class="fw-semibold">@mois.LibelleMois</span>
-                    <span class="text-muted small">
-                        HT : @mois.MontantHT.ToString("N3") DT |
-                        TTC : @mois.MontantTTC.ToString("N3") DT
-                    </span>
-                </div>
-                @* Barre HT *@
-                <div class="progress mb-1" style="height:14px;">
-                    <div class="progress-bar bg-success"
-                         style="width:@pctHT.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%"
-                         title="HT">
-                    </div>
-                </div>
-                @* Barre TTC *@
-                <div class="progress" style="height:14px;">
-                    <div class="progress-bar bg-primary opacity-75"
-                         style="width:@pctTTC.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%"
-                         title="TTC">
-                    </div>
-                </div>
-            </div>
-        }
-        <div class="d-flex gap-3 mt-2">
-            <span><span class="badge bg-success">■</span> CA HT</span>
-            <span><span class="badge bg-primary">■</span> CA TTC</span>
-        </div>
-    </div>
-</div>
-
-@* ── Top Clients + Top Produits ────────────────────────────────── *@
-<div class="row g-3">
-
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white fw-semibold">
-                <i class="bi bi-trophy text-warning"></i>
-                Top @_topN Clients
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>#</th>
-                            <th>Client</th>
-                            <th class="text-end">CA HT (DT)</th>
-                            <th class="text-end">Factures</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @{int rang = 1;}
-                        @foreach (var c in _topClients)
-                        {
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
                             <tr>
-                                <td>
-                                    @if (rang == 1)
-                                    { <i class="bi bi-trophy-fill text-warning"></i> }
-                                    else if (rang == 2)
-                                    { <i class="bi bi-trophy-fill text-secondary"></i> }
-                                    else if (rang == 3)
-                                    { <i class="bi bi-trophy-fill text-danger"></i> }
-                                    else
-                                    { <span>@rang</span> }
-                                </td>
-                                <td><strong>@c.NomClient</strong></td>
-                                <td class="text-end">@c.TotalHT.ToString("N3")</td>
-                                <td class="text-end">@c.NombreFactures</td>
+                                <th>#</th>
+                                <th>Client</th>
+                                <th class="text-end">CA HT (DT)</th>
+                                <th class="text-end">Factures</th>
                             </tr>
-                            rang++;
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @{ int rang = 1; }
+                            @foreach (var c in _topClients)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (rang == 1)      { <i class="bi bi-trophy-fill text-warning"></i> }
+                                        else if (rang == 2)  { <i class="bi bi-trophy-fill text-secondary"></i> }
+                                        else if (rang == 3)  { <i class="bi bi-trophy-fill text-danger"></i> }
+                                        else                 { <span>@rang</span> }
+                                    </td>
+                                    <td><strong>@c.NomClient</strong></td>
+                                    <td class="text-end">@c.TotalHT.ToString("N3")</td>
+                                    <td class="text-end">@c.NombreFactures</td>
+                                </tr>
+                                rang++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white fw-semibold">
-                <i class="bi bi-box-seam text-info"></i>
-                Top @_topN Produits
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>#</th>
-                            <th>Produit</th>
-                            <th class="text-end">CA HT (DT)</th>
-                            <th class="text-end">Qté</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @{int rangP = 1;}
-                        @foreach (var p in _topProduits)
-                        {
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-box-seam text-info"></i>
+                    Top @_topN Produits
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
                             <tr>
-                                <td>@rangP</td>
-                                <td><strong>@p.Designation</strong></td>
-                                <td class="text-end">@p.TotalHT.ToString("N3")</td>
-                                <td class="text-end">@p.QuantiteTotale.ToString("N0")</td>
+                                <th>#</th>
+                                <th>Produit</th>
+                                <th class="text-end">CA HT (DT)</th>
+                                <th class="text-end">Qté</th>
                             </tr>
-                            rangP++;
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @{ int rangP = 1; }
+                            @foreach (var p in _topProduits)
+                            {
+                                <tr>
+                                    <td>@rangP</td>
+                                    <td><strong>@p.Designation</strong></td>
+                                    <td class="text-end">@p.TotalHT.ToString("N3")</td>
+                                    <td class="text-end">@p.QuantiteTotale.ToString("N0")</td>
+                                </tr>
+                                rangP++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
 
-</div>
+    </div>
+}
 
 @code {
-    // ── État ──────────────────────────────────────────────────────────────
     private DateTime _dateDebut = new DateTime(DateTime.Now.Year, 1, 1);
     private DateTime _dateFin   = DateTime.Now;
     private int _topN = 5;
+    private bool _isLoading = true;
 
     private KpiGlobalDto _kpi = new();
     private List<CAParMoisDto> _caParMois = new();
     private List<CAParClientDto> _topClients = new();
     private List<CAParProduitDto> _topProduits = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        ChargerDonneesFictives();
+        await ChargerDonnees();
     }
 
-    private void AppliquerFiltre()
+    private async Task AppliquerFiltre()
     {
-        // Branchera sur GetCAParPeriodeAsync() quand M2 livrera ses entités
-        ChargerDonneesFictives();
+        _isLoading = true;
+        await ChargerDonnees();
     }
 
-    private void ChargerDonneesFictives()
+    private async Task ChargerDonnees()
     {
-        _kpi = new KpiGlobalDto
-        {
-            CATotalHT             = 18450.750m,
-            CATotalTTC            = 21757.385m,
-            NombreFacturesValidees = 47,
-            TVATotale             = 3259.635m,
-            TimbreTotal           = 47.000m
-        };
+        _isLoading = true;
 
-        _caParMois = new List<CAParMoisDto>
-        {
-            new() { LibelleMois = "Jan 2025", MontantHT = 2100.000m, MontantTTC = 2478.000m },
-            new() { LibelleMois = "Fév 2025", MontantHT = 1850.500m, MontantTTC = 2183.590m },
-            new() { LibelleMois = "Mar 2025", MontantHT = 3200.250m, MontantTTC = 3776.295m },
-            new() { LibelleMois = "Avr 2025", MontantHT = 2750.000m, MontantTTC = 3245.000m },
-            new() { LibelleMois = "Mai 2025", MontantHT = 4100.000m, MontantTTC = 4838.000m },
-            new() { LibelleMois = "Jui 2025", MontantHT = 4450.000m, MontantTTC = 5251.000m },
-        };
+        // EF Core DbContext n'est pas thread-safe — appels séquentiels obligatoires
+        _kpi         = await AnalytiqueService.GetKpiGlobalAsync();
+        _caParMois   = await AnalytiqueService.GetCAParPeriodeAsync(_dateDebut, _dateFin);
+        _topClients  = await AnalytiqueService.GetCAParClientAsync(_topN);
+        _topProduits = await AnalytiqueService.GetCAParProduitAsync(_topN);
 
-        _topClients = new List<CAParClientDto>
-        {
-            new() { NomClient = "Société Alpha",   TotalHT = 5200.000m, NombreFactures = 12 },
-            new() { NomClient = "Beta SARL",        TotalHT = 3800.500m, NombreFactures = 8  },
-            new() { NomClient = "Gamma Tech",       TotalHT = 2950.250m, NombreFactures = 6  },
-            new() { NomClient = "Delta Services",   TotalHT = 1800.000m, NombreFactures = 5  },
-            new() { NomClient = "Epsilon Corp",     TotalHT = 1200.750m, NombreFactures = 3  },
-        };
-
-        _topProduits = new List<CAParProduitDto>
-        {
-            new() { Designation = "Laptop Pro 15",     TotalHT = 4800.000m, QuantiteTotale = 8  },
-            new() { Designation = "Licence Office 365", TotalHT = 3200.000m, QuantiteTotale = 32 },
-            new() { Designation = "Maintenance annuelle", TotalHT = 2400.000m, QuantiteTotale = 12 },
-            new() { Designation = "Switch 24 ports",   TotalHT = 1950.750m, QuantiteTotale = 5  },
-            new() { Designation = "Formation .NET",    TotalHT = 1200.000m, QuantiteTotale = 4  },
-        };
+        _isLoading = false;
     }
 }

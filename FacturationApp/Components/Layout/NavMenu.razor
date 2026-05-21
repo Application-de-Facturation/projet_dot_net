@@ -1,4 +1,4 @@
-﻿@* FacturationApp/Components/Layout/NavMenu.razor *@
+@* FacturationApp/Components/Layout/NavMenu.razor *@
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -32,6 +32,25 @@
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="factures">
                 <i class="bi bi-receipt me-2"></i> Facturation
+            </NavLink>
+        </div>
+
+        @* ── Dashboard (M3) ───────────────────────────────── *@
+        <div class="nav-item px-3 mt-2">
+            <p class="nav-link text-white-50 small text-uppercase px-0 mb-0" style="cursor:default;">
+                <i class="bi bi-graph-up me-1"></i> Analytique
+            </p>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="dashboard/fiscal">
+                <i class="bi bi-percent me-2"></i> Dashboard Fiscal
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="dashboard/ventes">
+                <i class="bi bi-graph-up-arrow me-2"></i> Dashboard Ventes
             </NavLink>
         </div>
 

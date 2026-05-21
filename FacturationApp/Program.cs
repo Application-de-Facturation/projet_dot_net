@@ -1,8 +1,8 @@
 using FacturationApp.Components;
 using Microsoft.EntityFrameworkCore;
-using FacturationApp.Data;                          // Pour AppDbContext
-using FacturationApp.Services.Interfaces;           // Pour IClientService ← MANQUAIT
-using FacturationApp.Services.Implementations;      // Pour ClientService  ← MANQUAIT
+using FacturationApp.Data;
+using FacturationApp.Services.Interfaces;
+using FacturationApp.Services.Implementations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +20,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(connectionString));
 
+// Factory pour AnalytiqueService (contexte indépendant par appel)
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseSqlite(connectionString), ServiceLifetime.Scoped);
+
 // 
 // 3. SERVICES MÉTIER
 // 
@@ -27,20 +31,21 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // M1 — Clients
 builder.Services.AddScoped<IClientService, ClientService>();
 
-// M2 ajoutera ici ses services (Produit, Facture, Parametre...)
+// M2 — Produits, Factures, Paramètres, PDF
 builder.Services.AddScoped<IParametreService, ParametreService>();
 builder.Services.AddScoped<IProduitService, ProduitService>();
 builder.Services.AddScoped<IFactureService, FactureService>();
 builder.Services.AddScoped<IPdfService, PdfService>();
+
 // M3 — Analytique
 builder.Services.AddScoped<IAnalytiqueService, AnalytiqueService>();
 
 //
-// 4. API REST + SWAGGER  ← DOIT ÊTRE AVANT builder.Build()
+// 4. API REST + SWAGGER
 //
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();   
-builder.Services.AddSwaggerGen();             
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 // 
 // BUILD 
@@ -48,23 +53,21 @@ builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // 
-// 5. SEED BASE DE DONNÉES
+// 5. MIGRATION BASE DE DONNÉES
 // 
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-	context.Database.Migrate();
+    context.Database.Migrate();
 }
 
 // 
-// 6. PIPELINE HTTP  =====> ordre important !!!!
+// 6. PIPELINE HTTP
 // 
-
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(); // Accessible sur /swagger
+    app.UseSwaggerUI();
 }
 else
 {
@@ -76,12 +79,8 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
+app.MapControllers();
 
-
-// Routes API REST
-app.MapControllers();           
-
-// Routes Blazor
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
