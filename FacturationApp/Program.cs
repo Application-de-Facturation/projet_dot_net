@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using FacturationApp.Data;
 using FacturationApp.Services.Interfaces;
 using FacturationApp.Services.Implementations;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using FacturationApp.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +41,24 @@ builder.Services.AddScoped<IPdfService, PdfService>();
 
 // M3 — Analytique
 builder.Services.AddScoped<IAnalytiqueService, AnalytiqueService>();
+
+// M4 — Fournisseurs et Bons de commande
+builder.Services.AddScoped<IFournisseurService, FournisseurService>();
+builder.Services.AddScoped<IBonCommandeService, BonCommandeService>();
+
+// M5 — Authentification
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath       = "/";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.ExpireTimeSpan  = TimeSpan.FromHours(8);
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddSingleton<SessionManager>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 //
 // 4. API REST + SWAGGER
@@ -77,6 +97,8 @@ else
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapControllers();

@@ -1,0 +1,315 @@
+@* =========================================================
+   Fichier : FacturationApp/Pages/BonsCommande/Detail.razor
+   Rôle    : afficher le détail d'un BC + bouton "Marquer comme reçu"
+   La réception est IRRÉVERSIBLE : elle génère le numéro et met à jour le stock.
+   prerender: false → évite les problèmes de circuit Blazor Server au rendu SSR
+   ========================================================= *@
+
+@page "/bons-commande/{Id:int}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using FacturationApp.Data.Entities
+@using FacturationApp.Services.Interfaces
+
+@inject IBonCommandeService BonCommandeService
+@inject NavigationManager Navigation
+
+<PageTitle>Bon de commande @_bc?.Numero</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/bons-commande" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="mb-0">
+        <i class="bi bi-cart3 me-2"></i>
+        @if (_bc is null)
+        {
+            <text>Chargement...</text>
+        }
+        else if (string.IsNullOrEmpty(_bc.Numero))
+        {
+            <text>Brouillon</text>
+        }
+        else
+        {
+            @_bc.Numero
+        }
+    </h2>
+    @if (_bc?.Statut == "Reçu")
+    {
+        <span class="badge bg-success ms-3 fs-6">Reçu</span>
+    }
+    else if (_bc?.Statut == "Brouillon")
+    {
+        <span class="badge bg-secondary ms-3 fs-6">Brouillon</span>
+    }
+</div>
+
+@if (_isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement du bon de commande...</p>
+    </div>
+}
+else if (_bc is null)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>Bon de commande introuvable.
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-md-8">
+
+            @* ── Informations générales ─────────────────────────────────────── *@
+            <div class="card shadow-sm mb-3">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-info-circle me-2"></i>Informations
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1">
+                                <span class="text-muted">Numéro :</span>
+                                <strong>
+                                    @(string.IsNullOrEmpty(_bc.Numero)
+                                        ? "— généré à la réception —"
+                                        : _bc.Numero)
+                                </strong>
+                            </p>
+                            <p class="mb-1">
+                                <span class="text-muted">Date création :</span>
+                                <strong>@_bc.DateCreation.ToString("dd/MM/yyyy HH:mm")</strong>
+                            </p>
+                            @if (_bc.DateReception.HasValue)
+                            {
+                                <p class="mb-1">
+                                    <span class="text-muted">Date réception :</span>
+                                    <strong>@_bc.DateReception.Value.ToString("dd/MM/yyyy HH:mm")</strong>
+                                </p>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1">
+                                <span class="text-muted">Fournisseur :</span>
+                                <strong>@_bc.Fournisseur?.Nom</strong>
+                            </p>
+                            @if (!string.IsNullOrEmpty(_bc.Fournisseur?.MatriculeFiscal))
+                            {
+                                <p class="mb-1">
+                                    <span class="text-muted">Matricule fiscal :</span>
+                                    <strong>@_bc.Fournisseur.MatriculeFiscal</strong>
+                                </p>
+                            }
+                            @if (!string.IsNullOrEmpty(_bc.Fournisseur?.Email))
+                            {
+                                <p class="mb-1">
+                                    <span class="text-muted">Email :</span>
+                                    <strong>@_bc.Fournisseur.Email</strong>
+                                </p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Lignes du BC ───────────────────────────────────────────────── *@
+            <div class="card shadow-sm mb-3">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-list-ul me-2"></i>Lignes
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Désignation</th>
+                                    <th class="text-center">Qté</th>
+                                    <th class="text-end">PU HT</th>
+                                    <th class="text-center">TVA %</th>
+                                    <th class="text-end">Montant HT</th>
+                                    <th class="text-end">Montant TVA</th>
+                                    <th class="text-end">Montant TTC</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ligne in _bc.Lignes)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@ligne.Designation</td>
+                                        <td class="text-center">@ligne.Quantite</td>
+                                        <td class="text-end">@ligne.PrixUnitaireHT.ToString("F3")</td>
+                                        <td class="text-center">
+                                            <span class="badge @GetBadgeTVA(ligne.TauxTVA)">@ligne.TauxTVA %</span>
+                                        </td>
+                                        <td class="text-end">@ligne.MontantHT.ToString("F3")</td>
+                                        <td class="text-end">@ligne.MontantTVA.ToString("F3")</td>
+                                        <td class="text-end fw-semibold">@ligne.MontantTTC.ToString("F3")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Actions ────────────────────────────────────────────────────── *@
+            <div class="d-flex gap-2 flex-wrap">
+                @if (_bc.Statut == "Brouillon")
+                {
+                    <button class="btn btn-success" @onclick="MarquerRecu" disabled="@_isValidating">
+                        @if (_isValidating)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <text>Réception en cours...</text>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle me-1"></i>
+                            <text>Marquer comme reçu</text>
+                        }
+                    </button>
+                }
+
+                <a href="/bons-commande" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Retour
+                </a>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_messageErreur))
+            {
+                <div class="alert alert-danger mt-3">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@_messageErreur
+                </div>
+            }
+        </div>
+
+        @* ── COLONNE DROITE — Récapitulatif ────────────────────────────────── *@
+        <div class="col-md-4">
+            <div class="card shadow-sm sticky-top" style="top: 1rem;">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-calculator me-2"></i>Récapitulatif
+                </div>
+                <div class="card-body">
+                    @foreach (var groupe in GetGroupesTVA())
+                    {
+                        <div class="d-flex justify-content-between text-muted small mb-1">
+                            <span>TVA @groupe.Taux % :</span>
+                            <span>@groupe.MontantTVA.ToString("F3") DT</span>
+                        </div>
+                    }
+                    <hr class="my-2" />
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total HT :</span>
+                        <strong>@_bc.TotalHT.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total TVA :</span>
+                        <strong>@_bc.TotalTVA.ToString("F3") DT</strong>
+                    </div>
+                    <hr class="my-2" />
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold fs-6">Total TTC :</span>
+                        <strong class="text-primary fs-5">@_bc.TotalTTC.ToString("F3") DT</strong>
+                    </div>
+                    @if (_bc.Statut == "Brouillon")
+                    {
+                        <div class="text-muted small mt-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Le stock sera mis à jour à la réception.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-success small mt-2">
+                            <i class="bi bi-check-circle me-1"></i>
+                            Stock mis à jour le @_bc.DateReception?.ToString("dd/MM/yyyy").
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Toast de succès ────────────────────────────────────────────────────── *@
+@if (!string.IsNullOrEmpty(_messageSucces))
+{
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div class="toast show align-items-center text-bg-success border-0">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-check-circle me-2"></i>@_messageSucces
+                </div>
+                <button class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => _messageSucces = string.Empty"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private BonCommande? _bc = null;
+    private bool _isLoading = true;
+    private bool _isValidating = false;
+    private string _messageSucces = string.Empty;
+    private string _messageErreur = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+        => await ChargerBc();
+
+    private async Task ChargerBc()
+    {
+        _isLoading = true;
+        _bc = await BonCommandeService.GetByIdAsync(Id);
+        _isLoading = false;
+    }
+
+    private async Task MarquerRecu()
+    {
+        _messageErreur = string.Empty;
+        _isValidating = true;
+        try
+        {
+            await BonCommandeService.ValiderReceptionAsync(Id);
+            await ChargerBc();
+            _messageSucces = $"Bon de commande {_bc?.Numero} reçu. Stock mis à jour.";
+            // Auto-fermeture du toast après 4 secondes
+            await Task.Delay(4000);
+            _messageSucces = string.Empty;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _messageErreur = ex.Message;
+        }
+        finally
+        {
+            _isValidating = false;
+        }
+    }
+
+    private List<(decimal Taux, decimal MontantTVA)> GetGroupesTVA()
+    {
+        if (_bc is null) return new();
+        return _bc.Lignes
+            .Where(l => l.TauxTVA > 0)
+            .GroupBy(l => l.TauxTVA)
+            .Select(g => (Taux: g.Key, MontantTVA: g.Sum(l => l.MontantTVA)))
+            .OrderBy(g => g.Taux)
+            .ToList();
+    }
+
+    private static string GetBadgeTVA(decimal taux) => taux switch
+    {
+        0 => "bg-secondary",
+        7 => "bg-info text-dark",
+        13 => "bg-warning text-dark",
+        19 => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

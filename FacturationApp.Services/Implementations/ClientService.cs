@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using FacturationApp.Data;
 using FacturationApp.Data.Entities;
 using FacturationApp.Data.Extensions;
+using FacturationApp.Services.Exceptions;
 using FacturationApp.Services.Interfaces;
 
 namespace FacturationApp.Services.Implementations;
@@ -69,20 +70,53 @@ public class ClientService : IClientService
     /// <summary>Crée un nouveau client en base.</summary>
     public async Task<Client> CreateAsync(Client client)
     {
-        // On s'assure que la date de création est bien en UTC
+        if (!string.IsNullOrWhiteSpace(client.Email))
+        {
+            var emailExiste = await _context.Clients
+                .WhereActive()
+                .AnyAsync(c => c.Email == client.Email);
+            if (emailExiste)
+                throw new ClientValidationException("Un client avec cet email existe déjà.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(client.MatriculeFiscal))
+        {
+            var mfExiste = await _context.Clients
+                .WhereActive()
+                .AnyAsync(c => c.MatriculeFiscal == client.MatriculeFiscal);
+            if (mfExiste)
+                throw new ClientValidationException("Ce matricule fiscal est déjà enregistré.");
+        }
+
         client.CreatedAt = DateTime.UtcNow;
         client.IsDeleted = false;
 
-        _context.Clients.Add(client);          // Prépare l'INSERT en mémoire
-        await _context.SaveChangesAsync();      // Exécute l'INSERT en BDD
-        return client;                          // L'objet a maintenant un Id généré
+        _context.Clients.Add(client);
+        await _context.SaveChangesAsync();
+        return client;
     }
 
     /// <summary>Met à jour un client existant.</summary>
     public async Task UpdateAsync(Client client)
     {
-        // Update() marque toutes les propriétés comme "modifiées"
-        // EF Core générera un UPDATE SQL pour toutes les colonnes
+        if (!string.IsNullOrWhiteSpace(client.Email))
+        {
+            var emailExiste = await _context.Clients
+                .WhereActive()
+                .AnyAsync(c => c.Email == client.Email && c.Id != client.Id);
+            if (emailExiste)
+                throw new ClientValidationException("Un client avec cet email existe déjà.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(client.MatriculeFiscal))
+        {
+            var mfExiste = await _context.Clients
+                .WhereActive()
+                .AnyAsync(c => c.MatriculeFiscal == client.MatriculeFiscal && c.Id != client.Id);
+            if (mfExiste)
+                throw new ClientValidationException("Ce matricule fiscal est déjà enregistré.");
+        }
+
         _context.Clients.Update(client);
         await _context.SaveChangesAsync();
     }

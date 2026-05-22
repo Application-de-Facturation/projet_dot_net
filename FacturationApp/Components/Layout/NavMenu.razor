@@ -1,4 +1,4 @@
-@* FacturationApp/Components/Layout/NavMenu.razor *@
+﻿@* FacturationApp/Components/Layout/NavMenu.razor *@
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -11,11 +11,6 @@
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <i class="bi bi-house-door-fill me-2"></i> Accueil
-            </NavLink>
-        </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="clients">
@@ -32,6 +27,25 @@
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="factures">
                 <i class="bi bi-receipt me-2"></i> Facturation
+            </NavLink>
+        </div>
+
+        @* ── Fournisseurs (M4) ────────────────────────────── *@
+        <div class="nav-item px-3 mt-2">
+            <p class="nav-link text-white-50 small text-uppercase px-0 mb-0" style="cursor:default;">
+                <i class="bi bi-truck me-1"></i> Achats
+            </p>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="fournisseurs">
+                <i class="bi bi-truck me-2"></i> Fournisseurs
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="bons-commande">
+                <i class="bi bi-cart3 me-2"></i> Bons de commande
             </NavLink>
         </div>
 

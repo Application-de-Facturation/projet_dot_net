@@ -1,0 +1,340 @@
+@* =========================================================
+   Fichier : FacturationApp/Pages/BonsCommande/Create.razor
+   Rôle    : créer un nouveau bon de commande fournisseur
+   Même logique que Pages/Factures/Create.razor :
+     - Sélection du fournisseur
+     - Lignes avec sélection produit, quantité, snapshots, calcul temps réel
+   prerender: false → évite le problème de formulaire POST en SSR
+   ========================================================= *@
+
+@page "/bons-commande/nouveau"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using FacturationApp.Data.Entities
+@using FacturationApp.Services.Interfaces
+
+@inject IBonCommandeService BonCommandeService
+@inject IFournisseurService FournisseurService
+@inject IProduitService ProduitService
+@inject NavigationManager Navigation
+
+<PageTitle>Nouveau bon de commande</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <a href="/bons-commande" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="mb-0"><i class="bi bi-cart3 me-2"></i>Nouveau bon de commande</h2>
+</div>
+
+@if (_isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement...</p>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+
+        @* ── COLONNE GAUCHE ─────────────────────────────────────────────────── *@
+        <div class="col-md-8">
+
+            @* ── Sélection fournisseur ──────────────────────────────────────── *@
+            <div class="card shadow-sm mb-3">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-truck me-2"></i>Fournisseur
+                </div>
+                <div class="card-body">
+                    <select class="form-select" @onchange="OnFournisseurChange">
+                        <option value="0">— Sélectionner un fournisseur —</option>
+                        @foreach (var f in _fournisseurs)
+                        {
+                            <option value="@f.Id">
+                                @f.Nom
+                                @if (!string.IsNullOrEmpty(f.MatriculeFiscal))
+                                {
+                                    <text> — @f.MatriculeFiscal</text>
+                                }
+                            </option>
+                        }
+                    </select>
+                    @if (_fournisseurSelectionneId == 0 && _aEssayeEnregistrer)
+                    {
+                        <div class="text-danger small mt-1">
+                            <i class="bi bi-exclamation-circle me-1"></i>Veuillez sélectionner un fournisseur.
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* ── Lignes du bon de commande ───────────────────────────────────── *@
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="bi bi-list-ul me-2"></i>Lignes</span>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="AjouterLigne">
+                        <i class="bi bi-plus-lg me-1"></i>Ajouter une ligne
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    @if (!_lignes.Any())
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                            Aucune ligne. Cliquez sur "Ajouter une ligne".
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:35%">Produit</th>
+                                        <th style="width:10%" class="text-center">Qté</th>
+                                        <th style="width:15%" class="text-end">PU HT</th>
+                                        <th style="width:10%" class="text-center">TVA</th>
+                                        <th style="width:15%" class="text-end">Montant HT</th>
+                                        <th style="width:10%" class="text-end">TTC</th>
+                                        <th style="width:5%"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @* @key sur chaque <tr> force Blazor à recréer le DOM
+                                       quand la ligne change — règle le problème du select *@
+                                    @foreach (var ligne in _lignes)
+                                    {
+                                        <tr @key="ligne">
+                                            <td>
+                                                <select class="form-select form-select-sm"
+                                                        value="@ligne.ProduitId"
+                                                        @onchange="e => OnProduitChange(ligne, e)">
+                                                    <option value="0">— Produit —</option>
+                                                    @foreach (var p in _produits)
+                                                    {
+                                                        <option value="@p.Id"
+                                                                selected="@(p.Id == ligne.ProduitId)">
+                                                            @p.Designation
+                                                        </option>
+                                                    }
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-center"
+                                                       min="1"
+                                                       value="@ligne.Quantite"
+                                                       @onchange="e => OnQuantiteChange(ligne, e)" />
+                                            </td>
+                                            <td class="text-end text-muted small">
+                                                @ligne.PrixUnitaireHT.ToString("F3")
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge @GetBadgeTVA(ligne.TauxTVA)">
+                                                    @ligne.TauxTVA %
+                                                </span>
+                                            </td>
+                                            <td class="text-end">@ligne.MontantHT.ToString("F3")</td>
+                                            <td class="text-end fw-semibold">@ligne.MontantTTC.ToString("F3")</td>
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                        @onclick="() => SupprimerLigne(ligne)">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_messageErreur))
+            {
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@_messageErreur
+                </div>
+            }
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" @onclick="Enregistrer" disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <text>Enregistrement...</text>
+                    }
+                    else
+                    {
+                        <i class="bi bi-floppy me-1"></i>
+                        <text>Enregistrer en brouillon</text>
+                    }
+                </button>
+                <a href="/bons-commande" class="btn btn-outline-secondary">Annuler</a>
+            </div>
+        </div>
+
+        @* ── COLONNE DROITE — Récapitulatif ────────────────────────────────── *@
+        <div class="col-md-4">
+            <div class="card shadow-sm sticky-top" style="top: 1rem;">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-calculator me-2"></i>Récapitulatif
+                </div>
+                <div class="card-body">
+                    @foreach (var g in GetGroupesTVA())
+                    {
+                        <div class="d-flex justify-content-between text-muted small mb-1">
+                            <span>TVA @g.Taux % :</span>
+                            <span>@g.MontantTVA.ToString("F3") DT</span>
+                        </div>
+                    }
+                    <hr class="my-2" />
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total HT :</span>
+                        <strong>@_totalHT.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Total TVA :</span>
+                        <strong>@_totalTVA.ToString("F3") DT</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold">Total TTC :</span>
+                        <strong class="text-primary fs-5">@_totalTTC.ToString("F3") DT</strong>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Numéro BC généré à la réception.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    private List<Fournisseur> _fournisseurs = new();
+    private List<Produit> _produits = new();
+    private int _fournisseurSelectionneId = 0;
+    private List<LigneBonCommande> _lignes = new();
+    private decimal _totalHT = 0;
+    private decimal _totalTVA = 0;
+    private decimal _totalTTC = 0;
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private bool _aEssayeEnregistrer = false;
+    private string _messageErreur = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _fournisseurs = await FournisseurService.GetAllAsync();
+        _produits = await ProduitService.GetAllAsync();
+        _isLoading = false;
+    }
+
+    private void OnFournisseurChange(ChangeEventArgs e)
+        => _fournisseurSelectionneId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+    private void AjouterLigne()
+    {
+        _lignes.Add(new LigneBonCommande { Quantite = 1 });
+        StateHasChanged();
+    }
+
+    private void SupprimerLigne(LigneBonCommande ligne)
+    {
+        _lignes.Remove(ligne);
+        Recalculer();
+    }
+
+    private void OnProduitChange(LigneBonCommande ligne, ChangeEventArgs e)
+    {
+        var pid = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        var produit = _produits.FirstOrDefault(p => p.Id == pid);
+
+        if (produit is not null)
+        {
+            // Snapshots copiés depuis le produit sélectionné
+            ligne.ProduitId = produit.Id;
+            ligne.Designation = produit.Designation;
+            ligne.PrixUnitaireHT = produit.PrixUnitaireHT;
+            ligne.TauxTVA = produit.TauxTVA;
+        }
+        else
+        {
+            ligne.ProduitId = 0;
+            ligne.Designation = string.Empty;
+            ligne.PrixUnitaireHT = 0;
+            ligne.TauxTVA = 0;
+        }
+
+        Recalculer();
+    }
+
+    private void OnQuantiteChange(LigneBonCommande ligne, ChangeEventArgs e)
+    {
+        ligne.Quantite = int.TryParse(e.Value?.ToString(), out var q) && q > 0 ? q : 1;
+        Recalculer();
+    }
+
+    private void Recalculer()
+    {
+        foreach (var l in _lignes)
+        {
+            l.MontantHT = l.Quantite * l.PrixUnitaireHT;
+            l.MontantTVA = l.MontantHT * l.TauxTVA / 100;
+            l.MontantTTC = l.MontantHT + l.MontantTVA;
+        }
+        _totalHT = _lignes.Sum(l => l.MontantHT);
+        _totalTVA = _lignes.Sum(l => l.MontantTVA);
+        _totalTTC = _lignes.Sum(l => l.MontantTTC);
+    }
+
+    private List<(decimal Taux, decimal MontantTVA)> GetGroupesTVA()
+        => _lignes
+            .Where(l => l.ProduitId > 0 && l.TauxTVA > 0)
+            .GroupBy(l => l.TauxTVA)
+            .Select(g => (Taux: g.Key, MontantTVA: g.Sum(l => l.MontantTVA)))
+            .OrderBy(g => g.Taux)
+            .ToList();
+
+    private async Task Enregistrer()
+    {
+        _aEssayeEnregistrer = true;
+        _messageErreur = string.Empty;
+
+        if (_fournisseurSelectionneId == 0)
+        { _messageErreur = "Veuillez sélectionner un fournisseur."; return; }
+        if (!_lignes.Any())
+        { _messageErreur = "Ajoutez au moins une ligne."; return; }
+        if (_lignes.Any(l => l.ProduitId == 0 || l.Quantite <= 0))
+        { _messageErreur = "Certaines lignes sont incomplètes."; return; }
+
+        _isSaving = true;
+        try
+        {
+            var bc = new BonCommande { FournisseurId = _fournisseurSelectionneId };
+            await BonCommandeService.CreateAsync(bc, _lignes);
+            Navigation.NavigateTo("/bons-commande");
+        }
+        catch (Exception ex)
+        {
+            _messageErreur = $"Erreur : {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static string GetBadgeTVA(decimal taux) => taux switch
+    {
+        0 => "bg-secondary",
+        7 => "bg-info text-dark",
+        13 => "bg-warning text-dark",
+        19 => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

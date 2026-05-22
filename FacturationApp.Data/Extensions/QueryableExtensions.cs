@@ -15,5 +15,7 @@ public static class QueryableExtensions
     public static IQueryable<Client> WhereActive(this IQueryable<Client> query)
         => query.Where(c => !c.IsDeleted);
 
-    // M2 ajoutera ici : WhereActive pour Produit, Facture, etc.
+    // Filtre les fournisseurs non supprimés (M4)
+    public static IQueryable<Fournisseur> WhereActive(this IQueryable<Fournisseur> query)
+        => query.Where(f => !f.IsDeleted);
 }

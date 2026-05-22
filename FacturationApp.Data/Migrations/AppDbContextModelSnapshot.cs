@@ -17,6 +17,55 @@ namespace FacturationApp.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.6");
 
+            modelBuilder.Entity("FacturationApp.Data.Entities.BonCommande", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("DateCreation")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateReception")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FournisseurId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Numero")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Brouillon");
+
+                    b.Property<decimal>("TotalHT")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalTTC")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("TotalTVA")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DateCreation")
+                        .HasDatabaseName("IX_BonCommande_DateCreation");
+
+                    b.HasIndex("FournisseurId");
+
+                    b.HasIndex("Statut")
+                        .HasDatabaseName("IX_BonCommande_Statut");
+
+                    b.ToTable("BonCommande", (string)null);
+                });
+
             modelBuilder.Entity("FacturationApp.Data.Entities.Categorie", b =>
                 {
                     b.Property<int>("Id")
@@ -154,6 +203,94 @@ namespace FacturationApp.Data.Migrations
                     b.ToTable("Facture", (string)null);
                 });
 
+            modelBuilder.Entity("FacturationApp.Data.Entities.Fournisseur", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Adresse")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("MatriculeFiscal")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Telephone")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nom")
+                        .HasDatabaseName("IX_Fournisseur_Nom")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("Fournisseur", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.LigneBonCommande", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BonCommandeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MontantHT")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("MontantTTC")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("MontantTVA")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<decimal>("PrixUnitaireHT")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<int>("ProduitId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantite")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TauxTVA")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BonCommandeId");
+
+                    b.HasIndex("ProduitId");
+
+                    b.ToTable("LigneBonCommande", (string)null);
+                });
+
             modelBuilder.Entity("FacturationApp.Data.Entities.LigneFacture", b =>
                 {
                     b.Property<int>("Id")
@@ -240,6 +377,18 @@ namespace FacturationApp.Data.Migrations
                             Id = 3,
                             Cle = "FactureCompteur",
                             Valeur = "0"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Cle = "BonCommandePrefixe",
+                            Valeur = "BC"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Cle = "BonCommandeCompteur",
+                            Valeur = "0"
                         });
                 });
 
@@ -319,6 +468,65 @@ namespace FacturationApp.Data.Migrations
                     b.ToTable("StockMouvement", (string)null);
                 });
 
+            modelBuilder.Entity("FacturationApp.Data.Entities.Utilisateur", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("MotDePasseHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NomUtilisateur")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Utilisateur");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Utilisateur_Email");
+
+                    b.HasIndex("NomUtilisateur")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Utilisateur_NomUtilisateur");
+
+                    b.ToTable("Utilisateur", (string)null);
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.BonCommande", b =>
+                {
+                    b.HasOne("FacturationApp.Data.Entities.Fournisseur", "Fournisseur")
+                        .WithMany()
+                        .HasForeignKey("FournisseurId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Fournisseur");
+                });
+
             modelBuilder.Entity("FacturationApp.Data.Entities.Facture", b =>
                 {
                     b.HasOne("FacturationApp.Data.Entities.Client", "Client")
@@ -328,6 +536,25 @@ namespace FacturationApp.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Client");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.LigneBonCommande", b =>
+                {
+                    b.HasOne("FacturationApp.Data.Entities.BonCommande", "BonCommande")
+                        .WithMany("Lignes")
+                        .HasForeignKey("BonCommandeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FacturationApp.Data.Entities.Produit", "Produit")
+                        .WithMany()
+                        .HasForeignKey("ProduitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BonCommande");
+
+                    b.Navigation("Produit");
                 });
 
             modelBuilder.Entity("FacturationApp.Data.Entities.LigneFacture", b =>
@@ -369,6 +596,11 @@ namespace FacturationApp.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Produit");
+                });
+
+            modelBuilder.Entity("FacturationApp.Data.Entities.BonCommande", b =>
+                {
+                    b.Navigation("Lignes");
                 });
 
             modelBuilder.Entity("FacturationApp.Data.Entities.Categorie", b =>

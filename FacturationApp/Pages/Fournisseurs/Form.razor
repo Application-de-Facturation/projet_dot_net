@@ -1,27 +1,31 @@
 @* =========================================================
-   Fichier : FacturationApp/Pages/Clients/Form.razor
-   Rôle    : créer ou modifier un client (mode unifié)
+   Fichier : FacturationApp/Pages/Fournisseurs/Form.razor
+   Rôle    : créer ou modifier un fournisseur (mode unifié)
+   Même logique que Pages/Clients/Form.razor :
+     - Validation temps réel via computed properties + @bind:event="oninput"
+     - Icône verte/rouge sur les champs optionnels
+     - Alerte rouge en haut pour les erreurs serveur
    ========================================================= *@
 
-@page "/clients/nouveau"
-@page "/clients/editer/{Id:int}"
+@page "/fournisseurs/nouveau"
+@page "/fournisseurs/editer/{Id:int}"
 
 @using System.Text.RegularExpressions
 @using FacturationApp.Services.Exceptions
 
-@inject IClientService ClientService
+@inject IFournisseurService FournisseurService
 @inject NavigationManager NavigationManager
 
-<PageTitle>@(Id.HasValue ? "Modifier le client" : "Nouveau client")</PageTitle>
+<PageTitle>@(Id.HasValue ? "Modifier le fournisseur" : "Nouveau fournisseur")</PageTitle>
 
 <div class="d-flex align-items-center mb-4">
-    <a href="/clients" class="btn btn-outline-secondary me-3">
+    <a href="/fournisseurs" class="btn btn-outline-secondary me-3">
         <i class="bi bi-arrow-left"></i>
     </a>
-    <h2>@(Id.HasValue ? "Modifier le client" : "Nouveau client")</h2>
+    <h2>@(Id.HasValue ? "Modifier le fournisseur" : "Nouveau fournisseur")</h2>
 </div>
 
-@if (_client == null)
+@if (_fournisseur == null)
 {
     <p><em>Chargement...</em></p>
 }
@@ -37,10 +41,10 @@ else
         </div>
     }
 
-    <EditForm Model="_client"
+    <EditForm Model="_fournisseur"
               OnValidSubmit="Enregistrer"
               OnInvalidSubmit="@(() => _erreurTop = "Veuillez corriger les erreurs de saisie avant de valider.")"
-              FormName="formulaire-client">
+              FormName="formulaire-fournisseur">
 
         <DataAnnotationsValidator />
 
@@ -53,11 +57,11 @@ else
                         <label class="form-label fw-bold">
                             Nom <span class="text-danger">*</span>
                         </label>
-                        @* InputText sans :event → @bind-Value:event sur InputText crash en .NET 10 *@
-                        <InputText @bind-Value="_client.Nom"
+                        @* InputText sans :event → mise à jour sur blur, ValidationMessage fonctionne *@
+                        <InputText @bind-Value="_fournisseur.Nom"
                                    class="form-control"
-                                   placeholder="Nom complet ou raison sociale" />
-                        <ValidationMessage For="@(() => _client.Nom)" class="text-danger small" />
+                                   placeholder="Raison sociale ou nom complet" />
+                        <ValidationMessage For="@(() => _fournisseur.Nom)" class="text-danger small" />
                         <div class="d-flex justify-content-end mt-1">
                             <small class="@(NomLength > 130 ? "text-warning fw-semibold" : "text-muted")">
                                 @if (NomLength > 130)
@@ -91,11 +95,10 @@ else
                         }
 
                         <div class="input-group">
-                            @* @bind + @bind:event="oninput" sur <input> natif : génère CreateBinder
-                               (pas EventCallback<string>) → aucun crash ChangeEventArgs *@
+                            @* <input> natif + @bind:event="oninput" → CreateBinder, pas EventCallback<string> *@
                             <input type="text"
                                    class="form-control"
-                                   @bind="_client.MatriculeFiscal"
+                                   @bind="_fournisseur.MatriculeFiscal"
                                    @bind:event="oninput"
                                    placeholder="1234567A/P/M/000" />
                             @if (MfValide == true)
@@ -119,7 +122,7 @@ else
                                 Format invalide. Exemple : <strong>1234567A/P/M/000</strong>
                             </div>
                         }
-                        <ValidationMessage For="@(() => _client.MatriculeFiscal)" class="text-danger small" />
+                        <ValidationMessage For="@(() => _fournisseur.MatriculeFiscal)" class="text-danger small" />
                     </div>
 
                     @* ── EMAIL ────────────────────────────────────────── *@
@@ -128,9 +131,9 @@ else
                         <div class="input-group">
                             <input type="text"
                                    class="form-control"
-                                   @bind="_client.Email"
+                                   @bind="_fournisseur.Email"
                                    @bind:event="oninput"
-                                   placeholder="contact@entreprise.tn" />
+                                   placeholder="contact@fournisseur.tn" />
                             @if (EmailValide == true)
                             {
                                 <span class="input-group-text text-success border-success bg-white">
@@ -148,10 +151,10 @@ else
                         {
                             <div class="text-danger small mt-1">
                                 <i class="bi bi-exclamation-circle me-1"></i>
-                                Email invalide. Exemple : <strong>contact@entreprise.tn</strong>
+                                Email invalide. Exemple : <strong>contact@fournisseur.tn</strong>
                             </div>
                         }
-                        <ValidationMessage For="@(() => _client.Email)" class="text-danger small" />
+                        <ValidationMessage For="@(() => _fournisseur.Email)" class="text-danger small" />
                     </div>
 
                     @* ── TÉLÉPHONE ────────────────────────────────────── *@
@@ -160,7 +163,7 @@ else
                         <div class="input-group">
                             <input type="text"
                                    class="form-control"
-                                   @bind="_client.Telephone"
+                                   @bind="_fournisseur.Telephone"
                                    @bind:event="oninput"
                                    placeholder="+216 XX XXX XXX" />
                             @if (TelValide == true)
@@ -184,16 +187,16 @@ else
                                 Format invalide. Exemples : <strong>+216 22 333 444</strong> ou <strong>+21622333444</strong>
                             </div>
                         }
-                        <ValidationMessage For="@(() => _client.Telephone)" class="text-danger small" />
+                        <ValidationMessage For="@(() => _fournisseur.Telephone)" class="text-danger small" />
                     </div>
 
                     @* ── ADRESSE ──────────────────────────────────────── *@
                     <div class="col-12 mb-3">
                         <label class="form-label">Adresse</label>
-                        <InputTextArea @bind-Value="_client.Adresse"
+                        <InputTextArea @bind-Value="_fournisseur.Adresse"
                                        class="form-control"
                                        rows="3"
-                                       placeholder="Adresse complète" />
+                                       placeholder="Adresse complète du fournisseur" />
                     </div>
 
                 </div>
@@ -202,9 +205,9 @@ else
             <div class="card-footer d-flex gap-2">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-circle"></i>
-                    @(Id.HasValue ? "Enregistrer les modifications" : "Créer le client")
+                    @(Id.HasValue ? "Enregistrer les modifications" : "Créer le fournisseur")
                 </button>
-                <a href="/clients" class="btn btn-secondary">
+                <a href="/fournisseurs" class="btn btn-secondary">
                     <i class="bi bi-x-circle"></i> Annuler
                 </a>
             </div>
@@ -218,11 +221,11 @@ else
     [Parameter]
     public int? Id { get; set; }
 
-    private Client? _client;
+    private Fournisseur? _fournisseur;
     private string? _erreurTop;
     private bool _showMfHelp;
 
-    // ── Regex ─────────────────────────────────────────────────
+    // ── Regex ─────────────────────────────────────────────────────────────
     private static readonly Regex _regexEmail =
         new(@"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", RegexOptions.Compiled);
 
@@ -232,39 +235,44 @@ else
     private static readonly Regex _regexMf =
         new(@"^\d{7}[A-Za-z]/[PNMApnma]/[CEPBDAMcepbdam]/\d{3}$", RegexOptions.Compiled);
 
-    // ── Propriétés calculées : relues à chaque re-render ────────
-    // <input @bind @bind:event="oninput"> génère CreateBinder (pas EventCallback<string>)
-    // → met à jour _client.* à chaque frappe sans crash ChangeEventArgs.
-    // Les propriétés ci-dessous sont recalculées à chaque re-render Blazor.
+    // ── Propriétés calculées — relues à chaque re-render Blazor ───────────
+    // @bind:event="oninput" sur <input> natif met à jour _fournisseur.* à chaque frappe
+    // → déclenche un re-render → ces propriétés sont recalculées → icônes mises à jour
 
-    private int NomLength => _client?.Nom?.Length ?? 0;
+    private int NomLength => _fournisseur?.Nom?.Length ?? 0;
 
     private bool? EmailValide =>
-        string.IsNullOrWhiteSpace(_client?.Email) ? null : _regexEmail.IsMatch(_client!.Email);
+        string.IsNullOrWhiteSpace(_fournisseur?.Email)
+            ? null
+            : _regexEmail.IsMatch(_fournisseur!.Email);
 
     private bool? TelValide =>
-        string.IsNullOrWhiteSpace(_client?.Telephone) ? null : _regexTelephone.IsMatch(_client!.Telephone);
+        string.IsNullOrWhiteSpace(_fournisseur?.Telephone)
+            ? null
+            : _regexTelephone.IsMatch(_fournisseur!.Telephone);
 
     private bool? MfValide =>
-        string.IsNullOrWhiteSpace(_client?.MatriculeFiscal) ? null : _regexMf.IsMatch(_client!.MatriculeFiscal);
+        string.IsNullOrWhiteSpace(_fournisseur?.MatriculeFiscal)
+            ? null
+            : _regexMf.IsMatch(_fournisseur!.MatriculeFiscal);
 
-    // ── Initialisation ───────────────────────────────────────
+    // ── Initialisation ────────────────────────────────────────────────────
 
     protected override async Task OnInitializedAsync()
     {
         if (Id.HasValue)
         {
-            _client = await ClientService.GetByIdAsync(Id.Value);
-            if (_client == null)
-                NavigationManager.NavigateTo("/clients");
+            _fournisseur = await FournisseurService.GetByIdAsync(Id.Value);
+            if (_fournisseur == null)
+                NavigationManager.NavigateTo("/fournisseurs");
         }
         else
         {
-            _client = new Client();
+            _fournisseur = new Fournisseur();
         }
     }
 
-    // ── Sauvegarde ───────────────────────────────────────────
+    // ── Sauvegarde ────────────────────────────────────────────────────────
 
     private async Task Enregistrer()
     {
@@ -272,13 +280,13 @@ else
         try
         {
             if (Id.HasValue)
-                await ClientService.UpdateAsync(_client!);
+                await FournisseurService.UpdateAsync(_fournisseur!);
             else
-                await ClientService.CreateAsync(_client!);
+                await FournisseurService.CreateAsync(_fournisseur!);
 
-            NavigationManager.NavigateTo("/clients");
+            NavigationManager.NavigateTo("/fournisseurs");
         }
-        catch (ClientValidationException ex)
+        catch (FournisseurValidationException ex)
         {
             _erreurTop = ex.Message;
         }

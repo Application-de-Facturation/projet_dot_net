@@ -1,0 +1,179 @@
+@* =========================================================
+   Fichier : FacturationApp/Pages/BonsCommande/Index.razor
+   Rôle    : liste des bons de commande fournisseur
+   ========================================================= *@
+
+@page "/bons-commande"
+@using Microsoft.AspNetCore.Components.Web
+@using FacturationApp.Data.Entities
+@using FacturationApp.Services.Interfaces
+
+@inject IBonCommandeService BonCommandeService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Bons de commande</PageTitle>
+
+@* ── En-tête ────────────────────────────────────────────────────────────── *@
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="bi bi-cart3 me-2"></i>Bons de commande</h2>
+    <a href="/bons-commande/nouveau" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nouveau bon de commande
+    </a>
+</div>
+
+@* ── Contenu principal ─────────────────────────────────────────────────── *@
+@if (_isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 text-muted">Chargement des bons de commande...</p>
+    </div>
+}
+else if (!_bonsCommande.Any())
+{
+    <div class="alert alert-info d-flex align-items-center">
+        <i class="bi bi-info-circle me-2 fs-5"></i>
+        <span>Aucun bon de commande trouvé.</span>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Numéro</th>
+                    <th>Fournisseur</th>
+                    <th>Date création</th>
+                    <th class="text-end">Total TTC</th>
+                    <th class="text-center">Statut</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var bc in _bonsCommande)
+                {
+                    <tr>
+                        <td>
+                            @if (string.IsNullOrEmpty(bc.Numero))
+                            {
+                                <span class="text-muted fst-italic">Brouillon</span>
+                            }
+                            else
+                            {
+                                <span class="fw-semibold">@bc.Numero</span>
+                            }
+                        </td>
+                        <td>@bc.Fournisseur?.Nom</td>
+                        <td class="text-muted small">@bc.DateCreation.ToString("dd/MM/yyyy")</td>
+                        <td class="text-end fw-semibold">@bc.TotalTTC.ToString("F3") DT</td>
+                        <td class="text-center">
+                            @if (bc.Statut == "Reçu")
+                            {
+                                <span class="badge bg-success">Reçu</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Brouillon</span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            <a href="/bons-commande/@bc.Id"
+                               class="btn btn-sm btn-outline-info me-1" title="Voir le détail">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            @* Suppression uniquement pour les brouillons *@
+                            @if (bc.Statut == "Brouillon")
+                            {
+                                <button class="btn btn-sm btn-outline-danger" title="Supprimer"
+                                        @onclick="() => ConfirmerSuppression(bc.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small">
+        <i class="bi bi-info-circle me-1"></i>@_bonsCommande.Count bon(s) de commande affiché(s)
+    </p>
+}
+
+@* ── Modal de confirmation de suppression ─────────────────────────────── *@
+@if (_idASupprimer.HasValue)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Confirmer la suppression
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    Voulez-vous supprimer ce bon de commande ?
+                    <br /><small class="text-muted">Seuls les brouillons peuvent être supprimés.</small>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-secondary" @onclick="AnnulerSuppression">Annuler</button>
+                    <button class="btn btn-danger" @onclick="ExecuterSuppression">
+                        <i class="bi bi-trash me-1"></i>Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_messageErreur))
+{
+    <div class="alert alert-danger mt-3">
+        <i class="bi bi-exclamation-triangle me-2"></i>@_messageErreur
+    </div>
+}
+
+@code {
+    private List<BonCommande> _bonsCommande = new();
+    private bool _isLoading = true;
+    private int? _idASupprimer = null;
+    private string _messageErreur = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+        => await ChargerBonsCommande();
+
+    private async Task ChargerBonsCommande()
+    {
+        _isLoading = true;
+        _bonsCommande = await BonCommandeService.GetAllAsync();
+        _isLoading = false;
+    }
+
+    private void ConfirmerSuppression(int id)
+    {
+        _idASupprimer = id;
+        _messageErreur = string.Empty;
+    }
+
+    private void AnnulerSuppression()
+        => _idASupprimer = null;
+
+    private async Task ExecuterSuppression()
+    {
+        if (_idASupprimer.HasValue)
+        {
+            try
+            {
+                await BonCommandeService.DeleteAsync(_idASupprimer.Value);
+                _idASupprimer = null;
+                await ChargerBonsCommande();
+            }
+            catch (Exception ex)
+            {
+                _messageErreur = ex.Message;
+                _idASupprimer = null;
+            }
+        }
+    }
+}

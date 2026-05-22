@@ -32,7 +32,13 @@ public class AppDbContext : DbContext
 	// Stock mouvements
 	public DbSet<StockMouvement> StockMouvements { get; set; }
 
-	// M3 ajoutera ici : Utilisateurs (si extension validée)
+	// M4 — Fournisseurs et Bons de commande
+	public DbSet<Fournisseur> Fournisseurs { get; set; }
+	public DbSet<BonCommande> BonsCommande { get; set; }
+	public DbSet<LigneBonCommande> LignesBonCommande { get; set; }
+
+	// Auth — Comptes utilisateurs
+	public DbSet<Utilisateur> Utilisateurs { get; set; }
 
 	// ══════════════════════════════════════════════════════════════════════════
 	// CONFIGURATION AVANCÉE
@@ -41,17 +47,20 @@ public class AppDbContext : DbContext
 	{
 		base.OnModelCreating(modelBuilder);
 
-		// ── CLIENT (M1 — ne pas modifier) ─────────────────────────────────────
+		// ── CLIENT (M1) ───────────────────────────────────────────────────────
 		modelBuilder.Entity<Client>(entity =>
 		{
 			entity.ToTable("Client");
 			entity.HasKey(c => c.Id);
 			entity.Property(c => c.Id).ValueGeneratedOnAdd();
 			entity.Property(c => c.Nom).IsRequired().HasMaxLength(150);
-			entity.Property(c => c.Email).HasMaxLength(200);
-			entity.Property(c => c.Telephone).HasMaxLength(20);
+			// IsRequired(false) : [Required] sur l'entité sert uniquement à la validation
+			// Blazor (DataAnnotationsValidator) — la colonne reste nullable en base pour
+			// éviter une migration de rupture sur les données existantes.
+			entity.Property(c => c.Email).IsRequired(false).HasMaxLength(200);
+			entity.Property(c => c.Telephone).IsRequired(false).HasMaxLength(20);
 			entity.Property(c => c.Adresse).HasMaxLength(500);
-			entity.Property(c => c.MatriculeFiscal).HasMaxLength(50);
+			entity.Property(c => c.MatriculeFiscal).IsRequired(false).HasMaxLength(50);
 			entity.Property(c => c.IsDeleted).HasDefaultValue(false);
 			entity.HasIndex(c => c.Nom)
 				  .HasDatabaseName("IX_Client_Nom")
@@ -184,5 +193,103 @@ public class AppDbContext : DbContext
 				  .HasForeignKey(l => l.ProduitId)
 				  .OnDelete(DeleteBehavior.Restrict);
 		});
+
+		// ── FOURNISSEUR (M4) ───────────────────────────────────────────────────
+		modelBuilder.Entity<Fournisseur>(entity =>
+		{
+			entity.ToTable("Fournisseur");
+			entity.HasKey(f => f.Id);
+			entity.Property(f => f.Id).ValueGeneratedOnAdd();
+			entity.Property(f => f.Nom).IsRequired().HasMaxLength(150);
+			// Même raison que Client : colonnes nullable en base, [Required] pour validation UI
+			entity.Property(f => f.Email).IsRequired(false).HasMaxLength(200);
+			entity.Property(f => f.Telephone).IsRequired(false).HasMaxLength(20);
+			entity.Property(f => f.Adresse).HasMaxLength(500);
+			entity.Property(f => f.MatriculeFiscal).IsRequired(false).HasMaxLength(50);
+			entity.Property(f => f.IsDeleted).HasDefaultValue(false);
+
+			// Index filtré sur Nom — comme Client
+			entity.HasIndex(f => f.Nom)
+				  .HasDatabaseName("IX_Fournisseur_Nom")
+				  .HasFilter("[IsDeleted] = 0");
+		});
+
+		// ── BON DE COMMANDE (M4) ───────────────────────────────────────────────
+		modelBuilder.Entity<BonCommande>(entity =>
+		{
+			entity.ToTable("BonCommande");
+			entity.HasKey(b => b.Id);
+			entity.Property(b => b.Numero).HasMaxLength(20);
+			entity.Property(b => b.Statut).IsRequired().HasMaxLength(20).HasDefaultValue("Brouillon");
+			entity.Property(b => b.TotalHT).HasColumnType("decimal(18,3)");
+			entity.Property(b => b.TotalTVA).HasColumnType("decimal(18,3)");
+			entity.Property(b => b.TotalTTC).HasColumnType("decimal(18,3)");
+
+			// Clé étrangère vers Fournisseur — Restrict (on ne supprime pas un fournisseur qui a des BCs)
+			entity.HasOne(b => b.Fournisseur)
+				  .WithMany()
+				  .HasForeignKey(b => b.FournisseurId)
+				  .OnDelete(DeleteBehavior.Restrict);
+
+			// Index pour filtrage par statut et par date
+			entity.HasIndex(b => b.Statut).HasDatabaseName("IX_BonCommande_Statut");
+			entity.HasIndex(b => b.DateCreation).HasDatabaseName("IX_BonCommande_DateCreation");
+		});
+
+		// ── LIGNE BON DE COMMANDE (M4) ─────────────────────────────────────────
+		modelBuilder.Entity<LigneBonCommande>(entity =>
+		{
+			entity.ToTable("LigneBonCommande");
+			entity.HasKey(l => l.Id);
+
+			// Snapshots — mêmes types que LigneFacture
+			entity.Property(l => l.Designation).IsRequired().HasMaxLength(200);
+			entity.Property(l => l.PrixUnitaireHT).HasColumnType("decimal(18,3)");
+			entity.Property(l => l.TauxTVA).HasColumnType("decimal(5,2)");
+
+			// Montants calculés
+			entity.Property(l => l.MontantHT).HasColumnType("decimal(18,3)");
+			entity.Property(l => l.MontantTVA).HasColumnType("decimal(18,3)");
+			entity.Property(l => l.MontantTTC).HasColumnType("decimal(18,3)");
+
+			// Clé étrangère vers BonCommande — cascade : supprimer le BC supprime ses lignes
+			entity.HasOne(l => l.BonCommande)
+				  .WithMany(b => b.Lignes)
+				  .HasForeignKey(l => l.BonCommandeId)
+				  .OnDelete(DeleteBehavior.Cascade);
+
+			// Clé étrangère vers Produit — Restrict pour conserver l'historique
+			entity.HasOne(l => l.Produit)
+				  .WithMany()
+				  .HasForeignKey(l => l.ProduitId)
+				  .OnDelete(DeleteBehavior.Restrict);
+		});
+
+		// ── UTILISATEUR (Auth) ────────────────────────────────────────────────
+		modelBuilder.Entity<Utilisateur>(entity =>
+		{
+			entity.ToTable("Utilisateur");
+			entity.HasKey(u => u.Id);
+			entity.Property(u => u.NomUtilisateur).IsRequired().HasMaxLength(50);
+			entity.Property(u => u.Email).IsRequired().HasMaxLength(200);
+			entity.Property(u => u.MotDePasseHash).IsRequired();
+			entity.Property(u => u.Role).HasMaxLength(20).HasDefaultValue("Utilisateur");
+			entity.Property(u => u.IsDeleted).HasDefaultValue(false);
+
+			// Un nom d'utilisateur et un email doivent être uniques parmi les comptes actifs
+			entity.HasIndex(u => u.NomUtilisateur)
+				  .IsUnique()
+				  .HasDatabaseName("UX_Utilisateur_NomUtilisateur");
+			entity.HasIndex(u => u.Email)
+				  .IsUnique()
+				  .HasDatabaseName("UX_Utilisateur_Email");
+		});
+
+		// ── PARAMETRE — seed data M4 (IDs 4 et 5, les 1-3 sont pris par M2) ───
+		// Ajoute les paramètres de numérotation des bons de commande
+		modelBuilder.Entity<Parametre>().HasData(
+			new Parametre { Id = 4, Cle = "BonCommandePrefixe", Valeur = "BC" },
+			new Parametre { Id = 5, Cle = "BonCommandeCompteur", Valeur = "0" }
+		);
 	}
 }

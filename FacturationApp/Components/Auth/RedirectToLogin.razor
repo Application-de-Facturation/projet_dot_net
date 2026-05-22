@@ -1,0 +1,13 @@
+@* Composant de redirection vers la page de login.
+   Utilisé dans Routes.razor quand une route protégée est accédée sans être connecté. *@
+
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        // forceLoad: true → recharge la page via HTTP pour que le middleware
+        // de cookie auth puisse rediriger proprement vers la page de login.
+        NavigationManager.NavigateTo("/", forceLoad: true);
+    }
+}
